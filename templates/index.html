@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block styles %}
+.kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.kpi-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 20px 18px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.kpi-card:hover { border-color: var(--gold-dim); transform: translateY(-2px); }
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--gold); opacity: 0; transition: opacity .2s;
+}
+.kpi-card:hover::before, .kpi-card.active-accent::before { opacity: 1; }
+.kpi-card.sage::before { background: var(--sage); }
+.kpi-card.terra::before { background: var(--terra); }
+.kpi-card.sage:hover { border-color: rgba(111,168,130,.3); }
+.kpi-card.terra:hover { border-color: rgba(197,96,74,.3); }
+.kpi-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.kpi-value { font-family: 'Cormorant Garamond', serif; font-size: 36px; font-weight: 300; line-height: 1; letter-spacing: -1px; }
+.kpi-currency { font-size: 17px; font-weight: 400; color: var(--gold); margin-right: 2px; vertical-align: 5px; }
+.kpi-unit { font-family: 'Outfit', sans-serif; font-size: 18px; color: var(--muted); margin-left: 3px; }
+.kpi-delta { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.kpi-delta.up { color: var(--sage); }
+.kpi-delta.down { color: var(--terra); }
+.content-grid { display: grid; grid-template-columns: 1fr 320px; gap: 18px; align-items: start; }
+.left-col, .right-col { display: flex; flex-direction: column; gap: 18px; }
+.topbar { display: flex; align-items: flex-start; justify-content: space-between; }
+.greeting { font-family: 'Cormorant Garamond', serif; font-size: 34px; font-weight: 300; letter-spacing: -.5px; line-height: 1.1; }
+.greeting em { font-style: italic; color: var(--gold); }
+.date-line { font-size: 13px; color: var(--muted); margin-top: 5px; }
+.chart-wrap { padding: 6px 22px 22px; }
+.chart-legend { display: flex; gap: 18px; padding: 0 22px 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+.tx-item { display: flex; align-items: center; gap: 12px; padding: 12px 22px; border-bottom: 1px solid var(--faint); transition: background .15s; }
+.tx-item:last-child { border-bottom: none; }
+.tx-item:hover { background: var(--bg-hover); }
+.tx-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.tx-info { flex: 1; min-width: 0; }
+.tx-desc { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.tx-amount { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: var(--terra); flex-shrink: 0; }
+.donut-wrap { display: flex; flex-direction: column; align-items: center; padding: 4px 22px 20px; }
+.donut-legend { width: 100%; margin-top: 18px; display: flex; flex-direction: column; gap: 9px; }
+.donut-legend-item { display: flex; align-items: center; gap: 9px; }
+.donut-legend-label { font-size: 11px; color: var(--muted); width: 88px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.donut-bar-wrap { flex: 1; height: 3px; background: var(--faint); border-radius: 2px; overflow: hidden; }
+.donut-bar { height: 100%; border-radius: 2px; }
+.donut-val { font-family: 'Cormorant Garamond', serif; font-size: 14px; color: var(--cream); width: 56px; text-align: right; flex-shrink: 0; }
+.list-item { display: flex; align-items: center; gap: 11px; padding: 10px 22px; border-bottom: 1px solid var(--faint); transition: background .15s; }
+.list-item:last-child { border-bottom: none; }
+.list-item:hover { background: var(--bg-hover); }
+.list-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+.list-name { flex: 1; font-size: 13px; }
+.list-qty { font-size: 11px; color: var(--muted); background: var(--faint); padding: 2px 7px; border-radius: 20px; }
+.bill-item { display: flex; align-items: center; gap: 12px; padding: 12px 22px; border-bottom: 1px solid var(--faint); transition: background .15s; }
+.bill-item:last-child { border-bottom: none; }
+.bill-item:hover { background: var(--bg-hover); }
+.bill-bar { width: 3px; height: 34px; border-radius: 2px; flex-shrink: 0; }
+.bill-bar.urgent { background: var(--terra); }
+.bill-bar.soon { background: var(--gold); }
+.bill-bar.ok { background: var(--sage); }
+.bill-info { flex: 1; min-width: 0; }
+.bill-name { font-size: 13.5px; }
+.bill-due { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.bill-due.urgent { color: var(--terra); }
+.bill-val { font-family: 'Cormorant Garamond', serif; font-size: 16px; flex-shrink: 0; }
+.count-up { display: inline; }
+
+@media (max-width: 768px) {
+  .kpi-strip { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .content-grid { grid-template-columns: 1fr; }
+  .kpi-value { font-size: 28px; }
+  .topbar { flex-direction: column; gap: 12px; }
+  .page-actions { width: 100%; }
+  .page-actions .btn { flex: 1; justify-content: center; }
+  .greeting { font-size: 26px; }
+}
+@media (max-width: 420px) {
+  .kpi-strip { grid-template-columns: 1fr; }
+}
+{% endblock %}
+
+{% block conteudo %}
+<div class="topbar reveal">
+  <div>
+    <h1 class="greeting">Olá, <em>família</em> ✦</h1>
+    <p class="date-line" id="current-date"></p>
+  </div>
+  <div class="page-actions">
+    <a href="/exportar" class="btn btn-ghost">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exportar
+    </a>
+    <a href="/lista" class="btn btn-primary">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nova compra
+    </a>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-strip">
+  <div class="kpi-card sage reveal reveal-1">
+    <div class="kpi-label">Recebido no Mês</div>
+    <div class="kpi-value"><span class="kpi-currency">R$</span><span class="count-up" data-target="{{ total_creditos_mes|round(2) }}" data-float="1">0</span></div>
+    {% if total_creditos_mes_anterior > 0 %}
+      {% set diff_cred = ((total_creditos_mes - total_creditos_mes_anterior) / total_creditos_mes_anterior * 100) | round(1) %}
+      {% if diff_cred >= 0 %}
+        <div class="kpi-delta up">▲ +{{ diff_cred | numero(1) }}% vs mês ant.</div>
+      {% else %}
+        <div class="kpi-delta down">▼ {{ diff_cred | numero(1) }}% vs mês ant.</div>
+      {% endif %}
+    {% else %}
+      <div class="kpi-delta">{{ total_creditos_mes_anterior | dinheiro }} mês ant.</div>
+    {% endif %}
+  </div>
+
+  <div class="kpi-card terra reveal reveal-2">
+    <div class="kpi-label">Gasto no Mês</div>
+    <div class="kpi-value"><span class="kpi-currency">R$</span><span class="count-up" data-target="{{ total_debitos_mes }}" data-float="1">0</span></div>
+    {% if total_debitos_mes_anterior > 0 %}
+      {% set diff_deb = ((total_debitos_mes - total_debitos_mes_anterior) / total_debitos_mes_anterior * 100) %}
+      {% if diff_deb >= 0 %}
+        <div class="kpi-delta down">▲ +{{ diff_deb | numero(1) }}% vs mês ant.</div>
+      {% else %}
+        <div class="kpi-delta up">▼ {{ diff_deb | numero(1) }}% vs mês ant.</div>
+      {% endif %}
+    {% else %}
+      <div class="kpi-delta">{{ total_debitos_mes_anterior | dinheiro }} mês ant.</div>
+    {% endif %}
+  </div>
+
+  <div class="kpi-card {% if saldo_mes >= 0 %}sage{% else %}terra{% endif %} reveal reveal-3">
+    <div class="kpi-label">Saldo do Mês</div>
+    <div class="kpi-value" style="color: {% if saldo_mes >= 0 %}var(--sage){% else %}#ff4d4d{% endif %};">
+      <span class="kpi-currency" style="color: {% if saldo_mes >= 0 %}var(--sage){% else %}#ff4d4d{% endif %};">R$</span><span class="count-up" data-target="{{ saldo_mes|round(2) }}" data-float="1" style="color: {% if saldo_mes >= 0 %}var(--sage){% else %}#ff4d4d{% endif %};">0</span>
+    </div>
+    <div class="kpi-delta {% if saldo_mes >= 0 %}up{% else %}down{% endif %}">líquido recebido/gasto</div>
+  </div>
+
+  <div class="kpi-card terra reveal reveal-4">
+    <div class="kpi-label">Contas a Pagar</div>
+    <div class="kpi-value"><span class="count-up" data-target="{{ contas_pendentes }}">0</span><span class="kpi-unit">boletos</span></div>
+    <div class="kpi-delta {% if contas_pendentes > 0 %}down{% endif %}">em aberto</div>
+  </div>
+</div>
+
+<!-- Grid for Upcoming Bills and Receivables at the top -->
+<div class="reveal" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-top: 18px;">
+  <!-- Upcoming Bills -->
+  {% if contas_proximas %}
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Contas a Vencer</div>
+      <a href="/contas" class="panel-action">Gerenciar →</a>
+    </div>
+    {% for conta in contas_proximas %}
+      {% set dias = (conta.data_vencimento - hoje).days if hoje is defined else 99 %}
+      {% set urgencia = 'urgent' if dias < 0 else ('soon' if dias <= 3 else 'ok') %}
+      <div class="bill-item">
+        <div class="bill-bar {{ urgencia }}"></div>
+        <div class="bill-info">
+          <div class="bill-name">{{ conta.nome }}</div>
+          <div class="bill-due {% if urgencia == 'urgent' %}urgent{% endif %}" style="color: {% if urgencia == 'urgent' %}var(--terra){% elif urgencia == 'soon' %}var(--gold){% else %}var(--muted){% endif %};">
+            Vence {{ conta.data_vencimento.strftime('%d/%m/%Y') }}
+            {% if urgencia == 'urgent' %} (Vencido) {% elif urgencia == 'soon' %} ({% if dias == 0 %}Hoje{% else %}Em {{ dias }} dias{% endif %}) {% endif %}
+          </div>
+        </div>
+        <div class="bill-val" style="display: flex; align-items: center; gap: 8px;">
+          {% if conta.foto_path %}
+            <button onclick="previewMedia('{{ url_for('static', filename='uploads/boletos/' + conta.foto_path) }}')" class="btn btn-ghost btn-sm" style="padding: 4px 8px; font-size: 11px; height: 26px;" title="Ver comprovante">
+              🖼 Ver
+            </button>
+          {% endif %}
+          {{ conta.valor | dinheiro }}
+        </div>
+        <a href="/pagar_conta/{{ conta.id }}" class="btn btn-sage btn-sm" onclick="return confirm('Confirmar pagamento da conta {{ conta.nome | e }}?')">Pagar</a>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Contas a Vencer</div>
+      <a href="/contas" class="panel-action">Gerenciar →</a>
+    </div>
+    <div class="empty-state" style="padding: 24px;">
+      <p>Nenhuma conta vencendo em breve. 🎉</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Upcoming Receivables -->
+  {% if recebiveis_proximos %}
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Receitas a Receber</div>
+      <a href="/receber" class="panel-action">Gerenciar →</a>
+    </div>
+    {% for conta in recebiveis_proximos %}
+      <div class="bill-item">
+        <div class="bill-bar ok"></div>
+        <div class="bill-info">
+          <div class="bill-name">{{ conta.nome }}</div>
+          <div class="bill-due">
+            Previsão {{ conta.data_esperada.strftime('%d/%m/%Y') }}
+          </div>
+        </div>
+        <div class="bill-val" style="display: flex; align-items: center; gap: 8px; color: var(--sage); font-weight: 500;">
+          {% if conta.foto_path %}
+            <button onclick="previewMedia('{{ url_for('static', filename='uploads/boletos/' + conta.foto_path) }}')" class="btn btn-ghost btn-sm" style="padding: 4px 8px; font-size: 11px; height: 26px;" title="Ver comprovante">
+              🖼 Ver
+            </button>
+          {% endif %}
+          {{ conta.valor | dinheiro }}
+        </div>
+        <a href="/receber/dar_baixa/{{ conta.id }}" class="btn btn-sage btn-sm" onclick="return confirm('Confirmar recebimento de {{ conta.nome | e }}?')">Receber</a>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Receitas a Receber</div>
+      <a href="/receber" class="panel-action">Gerenciar →</a>
+    </div>
+    <div class="empty-state" style="padding: 24px;">
+      <p>Nenhum recebimento esperado em breve. 💸</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Content Grid -->
+<div class="content-grid reveal" style="margin-top: 18px;">
+  <div class="left-col">
+
+    <!-- Line Chart -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Fluxo de Caixa — Últimos 30 Dias</div>
+        <a href="/relatorios" class="panel-action">Ver relatório →</a>
+      </div>
+      <div class="chart-wrap"><canvas id="spendingChart" height="90"></canvas></div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Últimas Transações</div>
+        <a href="/relatorios" class="panel-action">Ver todas →</a>
+      </div>
+      {% if notas %}
+        {% for nota in notas %}
+        <div class="tx-item">
+          <div class="tx-icon">
+            {% if nota.tipo == 'credito' %}
+              💰
+            {% elif 'IA:' in nota.descricao %}
+              🤖
+            {% elif 'Conta Paga' in nota.descricao %}
+              🧾
+            {% else %}
+              🛒
+            {% endif %}
+          </div>
+          <div class="tx-info">
+            <div class="tx-desc">{{ nota.descricao }}</div>
+            <div class="tx-meta">{{ nota.data.strftime('%d/%m/%Y às %H:%M') }}</div>
+          </div>
+          <div class="tx-amount" style="color: {% if nota.tipo == 'credito' %}var(--sage){% else %}var(--terra){% endif %}; font-weight: 500;">
+            {% if nota.tipo == 'credito' %}+{% else %}−{% endif %} {{ nota.valor | dinheiro }}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-state-icon">💸</div>
+          <p>Nenhuma transação registrada ainda.</p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+  <div class="right-col">
+
+    <!-- Category Donut -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Gastos por Categoria</div>
+      </div>
+      <div class="donut-wrap">
+        <canvas id="categoryChart" height="180" style="max-width:180px;width:100%"></canvas>
+        <div class="donut-legend" id="donut-legend"></div>
+      </div>
+    </div>
+
+    <!-- Shopping List Preview -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Lista de Compras</div>
+        <a href="/lista" class="panel-action">Abrir →</a>
+      </div>
+      {% if lista_preview %}
+        {% for item in lista_preview %}
+        <div class="list-item">
+          <div class="list-dot"></div>
+          <span class="list-name">{{ item.item }}</span>
+          <span class="list-qty">{{ item.quantidade | numero }} {{ item.unidade }}</span>
+          {% set cat = item.categoria | lower | replace(' ', '') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
+          <span class="chip chip-{{ cat }}">{{ item.categoria }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:24px">
+          <p>Lista vazia — tudo comprado! 🎉</p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Date
+(function() {
+  const days = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const d = new Date();
+  document.getElementById('current-date').textContent =
+    `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]} de ${d.getFullYear()}`;
+})();
+
+// Counter animation
+function formatNumberBR(val) {
+  return val.toFixed(2).replace('.', ',').replace(/\d(?=(\d{3})+,)/g, '$&.');
+}
+function animateCount(el) {
+  const target = parseFloat(el.dataset.target) || 0;
+  const isFloat = el.dataset.float === '1';
+  const start = performance.now();
+  const dur = 900;
+  (function step(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const val = ease * target;
+    el.textContent = isFloat ? formatNumberBR(val) : Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    if (p < 1) requestAnimationFrame(step);
+  })(start);
+}
+document.querySelectorAll('.count-up').forEach(el => {
+  new IntersectionObserver(([e]) => { if (e.isIntersecting) { animateCount(el); } }, {threshold:.1}).observe(el);
+});
+
+// Dual line chart (Credits vs Debits)
+(function() {
+  const labels = {{ datas | tojson | safe }};
+  const debitos = {{ valores_debitos | tojson | safe }};
+  const creditos = {{ valores_creditos | tojson | safe }};
+  const ctx = document.getElementById('spendingChart').getContext('2d');
+  
+  new Chart(ctx, {
+    type: 'line',
+    data: { 
+      labels, 
+      datasets: [
+        { 
+          label: 'Gastos (Débito)',
+          data: debitos, 
+          borderColor: '#C5604A', 
+          backgroundColor: 'rgba(204,110,88,0.02)', 
+          borderWidth: 1.8, 
+          fill: true, 
+          tension: 0.4, 
+          pointRadius: 0, 
+          pointHoverRadius: 5, 
+          pointHoverBackgroundColor: '#C5604A' 
+        },
+        { 
+          label: 'Recebimentos (Crédito)',
+          data: creditos, 
+          borderColor: '#78B38D', 
+          backgroundColor: 'rgba(120,179,141,0.02)', 
+          borderWidth: 1.8, 
+          fill: true, 
+          tension: 0.4, 
+          pointRadius: 0, 
+          pointHoverRadius: 5, 
+          pointHoverBackgroundColor: '#78B38D' 
+        }
+      ] 
+    },
+    options: {
+      responsive: true, 
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: '#8E8272', font: { family: 'Roboto', size: 10 } } },
+        tooltip: { 
+          backgroundColor: '#1C1915', 
+          titleColor: '#7A6E5F', 
+          bodyColor: '#EDE4CF', 
+          borderColor: 'rgba(229,161,56,.2)', 
+          borderWidth: 1, 
+          padding: 10,
+          callbacks: { label: c => ` ${c.dataset.label}: R$ ${c.parsed.y.toFixed(2).replace('.', ',')}` }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(44,40,32,.7)' }, ticks: { color: '#4A4237', font: { family: 'Roboto', size: 10 }, maxTicksLimit: 7 } },
+        y: { grid: { color: 'rgba(44,40,32,.7)' }, ticks: { color: '#4A4237', font: { family: 'Roboto', size: 10 }, callback: v => `R$ ${v}` } }
+      }
+    }
+  });
+})();
+
+// Category donut
+(function() {
+  const labels = {{ labels_cat | tojson | safe }};
+  const values = {{ valores_cat | tojson | safe }};
+  const palette = ['#D4922A','#6FA882','#8099CC','#C5604A','#A88060','#4A4237'];
+  const chartColors = labels.map((_, i) => palette[i % palette.length]);
+  const ctx = document.getElementById('categoryChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: chartColors, borderColor: '#141210', borderWidth: 3, hoverOffset: 5 }] },
+    options: {
+      responsive: true, cutout: '70%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1C1915', titleColor: '#7A6E5F', bodyColor: '#EDE4CF', borderColor: 'rgba(212,146,42,.2)', borderWidth: 1, padding: 10,
+          callbacks: { label: c => ` R$ ${c.parsed.toFixed(2).replace('.', ',')}` }
+        }
+      }
+    }
+  });
+  const total = values.reduce((a, b) => a + b, 0);
+  const leg = document.getElementById('donut-legend');
+  labels.forEach((l, i) => {
+    const pct = total > 0 ? values[i] / total * 100 : 0;
+    const col = palette[i % palette.length];
+    const formattedVal = values[i].toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    leg.innerHTML += `<div class="donut-legend-item">
+      <span class="donut-legend-label" style="color:${col}">${l}</span>
+      <div class="donut-bar-wrap"><div class="donut-bar" style="width:${pct}%;background:${col}"></div></div>
+      <span class="donut-val">R$ ${formattedVal}</span>
+    </div>`;
+  });
+})();
+</script>
+{% endblock %}

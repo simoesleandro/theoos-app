@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Orçamento{% endblock %}
+
+{% block styles %}
+.orc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+.orc-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+.budget-row { padding: 18px 22px; border-bottom: 1px solid var(--faint); }
+.budget-row:last-child { border-bottom: none; }
+.budget-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.budget-cat { display: flex; align-items: center; gap: 10px; }
+.budget-name { font-size: 14px; font-weight: 500; }
+.budget-amounts { font-size: 12px; color: var(--muted); }
+.budget-amounts strong { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: var(--cream); }
+.progress-track { height: 6px; background: var(--faint); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.progress-ok { background: var(--sage); }
+.progress-warn { background: var(--gold); }
+.progress-over { background: var(--terra); }
+.progress-label { display: flex; justify-content: space-between; margin-top: 5px; font-size: 10px; color: var(--muted); }
+.no-budget-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 22px; border-bottom: 1px solid var(--faint);
+  font-size: 13px; color: var(--muted);
+}
+.no-budget-row:last-child { border-bottom: none; }
+
+@media (max-width: 768px) {
+  .orc-grid { grid-template-columns: 1fr; }
+  .orc-form-grid { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; gap: 12px; }
+}
+{% endblock %}
+
+{% block conteudo %}
+<div class="page-header reveal">
+  <div>
+    <h1 class="page-heading">Controle de <em>Orçamento</em></h1>
+    <p class="page-sub">Defina limites mensais por categoria e receba alertas no Telegram</p>
+  </div>
+  <div class="page-actions">
+    <a href="/" class="btn btn-ghost">← Voltar</a>
+  </div>
+</div>
+
+<div class="orc-grid">
+
+  <!-- Left: form -->
+  <div style="display:flex;flex-direction:column;gap:18px">
+
+    <div class="panel reveal">
+      <div class="panel-header">
+        <div class="panel-title">Definir Limite Mensal</div>
+      </div>
+      <div class="panel-body">
+        <form action="/orcamento" method="POST">
+          <div class="orc-form-grid">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Categoria</label>
+              <select name="categoria" class="form-select category-select" required>
+                {% for cat in categorias_sistema %}
+                  <option value="{{ cat }}" {% if cat == 'Outros' %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+                <option value="__NEW__" style="color: var(--gold); font-weight: 500;">+ Adicionar Nova Categoria...</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Limite Mensal (R$)</label>
+              <input type="number" step="0.01" min="1" name="limite" class="form-input" placeholder="500,00" required>
+            </div>
+          </div>
+          <div style="margin-top:16px">
+            <button type="submit" class="btn btn-primary" style="width:100%">Salvar Limite</button>
+          </div>
+        </form>
+        <div class="alert alert-warning" style="margin-top:16px;margin-bottom:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          O bot envia alerta no Telegram quando ≥ 80% do limite é atingido.
+        </div>
+      </div>
+    </div>
+
+    <!-- Categories without budget -->
+    {% set cats_com_orc = orcamentos | map(attribute='categoria') | list %}
+    {% set cats_gastas = gastos_mes.keys() | list %}
+    {% set cats_sem_orc = cats_gastas | reject('in', cats_com_orc) | list %}
+    {% if cats_sem_orc %}
+    <div class="panel reveal">
+      <div class="panel-header">
+        <div class="panel-title">Categorias sem Orçamento</div>
+      </div>
+      {% for cat in cats_sem_orc %}
+      <div class="no-budget-row">
+        <span>{{ cat }}</span>
+        <span style="font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--terra)">
+          {{ gastos_mes[cat] | dinheiro }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: budgets with progress -->
+  <div class="panel reveal">
+    <div class="panel-header">
+      <div class="panel-title">Limites Este Mês</div>
+    </div>
+
+    {% if orcamentos %}
+      {% for orc in orcamentos %}
+        {% set gasto = gastos_mes.get(orc.categoria, 0) %}
+        {% set pct = (gasto / orc.limite_mensal * 100) | round(1) %}
+        {% set pct_clamped = [pct, 100] | min %}
+        {% set status = 'over' if pct >= 100 else ('warn' if pct >= 80 else 'ok') %}
+        <div class="budget-row">
+          <div class="budget-header">
+            <div class="budget-cat">
+              {% set cat = orc.categoria | lower | replace(' ', '') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
+              <span class="chip chip-{{ cat }}">{{ orc.categoria }}</span>
+              {% if pct >= 100 %}
+                <span style="font-size:11px;color:var(--terra)">🚨 Limite atingido</span>
+              {% elif pct >= 80 %}
+                <span style="font-size:11px;color:var(--gold)">⚠️ Atenção</span>
+              {% endif %}
+            </div>
+            <div class="budget-amounts">
+              <strong>{{ gasto | dinheiro }}</strong> / {{ orc.limite_mensal | dinheiro }}
+            </div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill progress-{{ status }}" style="width: {{ pct_clamped }}%"></div>
+          </div>
+          <div class="progress-label">
+            <span>{{ pct | numero(1) }}% usado</span>
+            <span>Restam {{ [orc.limite_mensal - gasto, 0] | max | dinheiro }}</span>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">⏱️</div>
+        <p>Nenhum orçamento definido ainda.</p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

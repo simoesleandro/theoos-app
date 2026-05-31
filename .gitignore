@@ -1,0 +1,27 @@
+# Credenciais
+.env
+
+# Banco de dados
+instance/
+*.db
+
+# Logs de runtime
+logs/
+
+# Uploads gerados pelo bot
+static/uploads/boletos/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

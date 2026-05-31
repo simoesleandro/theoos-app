@@ -1,0 +1,6 @@
+flask
+flask-sqlalchemy
+pyTelegramBotAPI
+google-genai
+python-dotenv
+pillow

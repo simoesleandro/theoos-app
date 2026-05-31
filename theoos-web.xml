@@ -1,0 +1,15 @@
+<service>
+  <id>theoos-web</id>
+  <name>ThéoOS - Painel Web Dashboard</name>
+  <description>Serviço que mantém o site Flask da família rodando na rede local (Porta 5000).</description>
+  
+  <executable>C:\Users\Leand\AppData\Local\Programs\Python\Python313\python.exe</executable>
+  
+  <arguments>app.py</arguments>
+  
+  <workingdirectory>C:\Users\Leand\OneDrive\Desktop\appfamiliar</workingdirectory>
+  
+  <log mode="roll">
+    <logpath>C:\Users\Leand\OneDrive\Desktop\appfamiliar\logs</logpath>
+  </log>
+</service>
