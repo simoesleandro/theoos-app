@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Configurações{% endblock %}
+
+{% block conteudo %}
+<div class="page-header reveal">
+  <div>
+    <h1 class="page-heading">Configurações</h1>
+    <p class="page-sub">Segurança, lembretes, backup e contas fixas</p>
+  </div>
+  <a href="/" class="btn btn-ghost">Voltar</a>
+</div>
+
+<div class="settings-stack reveal">
+
+  <div class="panel settings-panel">
+    <div class="panel-header">
+      <div class="panel-title">Segurança</div>
+      {% if pin_enabled %}<span class="chip chip-success">PIN ativo</span>{% endif %}
+    </div>
+    <div class="panel-body">
+      <form method="POST" class="form-stack">
+        <input type="hidden" name="action" value="set_pin">
+        <div class="form-row-2">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="pin">Novo PIN</label>
+            <input type="password" id="pin" name="pin" class="form-input" minlength="4" autocomplete="new-password" placeholder="Mín. 4 dígitos">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="pin_confirm">Confirmar PIN</label>
+            <input type="password" id="pin_confirm" name="pin_confirm" class="form-input" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button type="submit" class="btn btn-primary">Salvar PIN</button>
+        </div>
+      </form>
+      {% if pin_enabled %}
+      <form method="POST" class="settings-actions" style="margin-top:var(--space-2)">
+        <input type="hidden" name="action" value="clear_pin">
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover PIN? O painel ficará aberto na rede local.')">Remover PIN</button>
+      </form>
+      {% endif %}
+      <p class="tx-meta" style="margin-top:var(--space-4)">Alternativa: variável <code>WEB_PIN</code> no arquivo <code>.env</code></p>
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Lembretes no Telegram</div></div>
+    <div class="panel-body">
+      <form method="POST" class="form-stack">
+        <input type="hidden" name="action" value="reminders">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="reminder_days">Dias antes do vencimento</label>
+          <input type="text" id="reminder_days" name="reminder_days" class="form-input" value="{{ reminder_days }}" placeholder="0, 1, 2, 7">
+          <p class="tx-meta" style="margin-top:var(--space-2)">Separe com vírgula. Ex: <strong>0</strong> = no dia, <strong>2</strong> = dois dias antes. Envio às 10h.</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Salvar lembretes</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Notificações no navegador</div></div>
+    <div class="panel-body">
+      <form method="POST" class="form-stack">
+        <input type="hidden" name="action" value="web_notify">
+        <label style="display:flex;align-items:center;gap:10px;font-size:var(--text-sm);cursor:pointer">
+          <input type="checkbox" name="web_notify" {% if web_notify %}checked{% endif %} style="width:20px;height:20px;accent-color:var(--brand)">
+          Avisar vencimentos no painel (usa os mesmos dias dos lembretes acima)
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+      </form>
+      <button type="button" id="btn-enable-notify" class="btn btn-outline btn-sm" style="margin-top:var(--space-3)">Permitir notificações neste dispositivo</button>
+      <p id="notify-status" class="tx-meta" style="margin-top:var(--space-2)" hidden></p>
+      <p class="tx-meta" style="margin-top:var(--space-2)">Funciona com HTTPS ou <code>localhost</code>. Em <code>http://IP-da-rede</code> o navegador pode bloquear — use o endereço local ou HTTPS.</p>
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Aparência</div></div>
+    <div class="panel-body">
+      <form method="POST">
+        <input type="hidden" name="action" value="theme">
+        <label class="form-label" for="theme">Tema do painel</label>
+        <select id="theme" name="theme" class="form-select" onchange="this.form.submit()" style="max-width:240px">
+          <option value="dark" {% if theme == 'dark' %}selected{% endif %}>Escuro</option>
+          <option value="light" {% if theme == 'light' %}selected{% endif %}>Claro</option>
+        </select>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Backup e restauração</div></div>
+    <div class="panel-body form-stack">
+      <a href="{{ url_for('config_backup') }}" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar backup (.zip)
+      </a>
+      <form method="POST" action="{{ url_for('config_restore') }}" enctype="multipart/form-data" class="form-stack">
+        <div class="file-field">
+          <label class="form-label" for="backup-file">Restaurar de arquivo</label>
+          <input type="file" id="backup-file" name="backup" accept=".zip" required>
+        </div>
+        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Isso substitui o banco e os comprovantes. Continuar?')">Restaurar backup</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Contas fixas mensais</div></div>
+    <div class="panel-body">
+      <form method="POST" class="form-stack">
+        <input type="hidden" name="action" value="recurring_add">
+        <div class="form-row-recurring">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="rec-nome">Nome</label>
+            <input type="text" id="rec-nome" name="nome" class="form-input" placeholder="Ex: Internet" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="rec-valor">Valor (R$)</label>
+            <input type="text" id="rec-valor" name="valor" class="form-input" placeholder="0,00" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="rec-dia">Dia</label>
+            <input type="number" id="rec-dia" name="dia" class="form-input" min="1" max="28" value="10">
+          </div>
+        </div>
+        <div class="form-row-recurring-2">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="rec-cat">Categoria</label>
+            <select id="rec-cat" name="categoria" class="form-select">
+              {% for cat in categorias_sistema %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label" for="rec-tipo">Tipo</label>
+            <select id="rec-tipo" name="tipo" class="form-select">
+              <option value="pagar">A pagar</option>
+              <option value="receber">A receber</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Adicionar</button>
+        </div>
+      </form>
+      <form method="POST" style="margin-top:var(--space-4)">
+        <input type="hidden" name="action" value="recurring_run">
+        <button type="submit" class="btn btn-ghost btn-sm">Gerar lançamentos deste mês</button>
+      </form>
+      {% if recurring_templates %}
+      <ul class="recurring-list">
+        {% for t in recurring_templates %}
+        <li>
+          <span><strong>{{ t.nome }}</strong> · {{ t.valor | dinheiro }} · dia {{ t.dia_vencimento }}</span>
+          <span class="chip chip-neutral">{{ t.tipo }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Auditoria</div></div>
+    <div class="panel-body">
+      {% if audit_logs %}
+      <ul class="audit-list">
+        {% for log in audit_logs %}
+        <li>{{ log.created_at }} — <strong>{{ log.action }}</strong> {{ log.entity }}{% if log.entity_id %} #{{ log.entity_id }}{% endif %} <span>({{ log.actor }})</span>{% if log.detail %} — {{ log.detail }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="tx-meta">Nenhuma exclusão registrada ainda.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="panel settings-panel">
+    <div class="panel-header"><div class="panel-title">Dados e sessão</div></div>
+    <div class="panel-body settings-actions">
+      <a href="{{ url_for('exportar') }}" class="btn btn-ghost btn-sm">Exportar itens CSV</a>
+      <a href="{{ url_for('exportar_fluxo_caixa') }}" class="btn btn-ghost btn-sm">Fluxo de caixa</a>
+      <a href="{{ url_for('importar_cartao') }}" class="btn btn-ghost btn-sm">Conciliar extrato</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">Sair da sessão</a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -4,3 +4,4 @@ pyTelegramBotAPI
 google-genai
 python-dotenv
 pillow
+fpdf2

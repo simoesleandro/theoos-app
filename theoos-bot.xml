@@ -1,15 +1,34 @@
 <service>
   <id>theoos-bot</id>
-  <name>ThéoOS - Bot do Telegram</name>
-  <description>Serviço que mantém o bot da família rodando em background.</description>
-  
-  <executable>C:\Users\Leand\AppData\Local\Programs\Python\Python313\python.exe</executable>
-  
-  <arguments>bot.py</arguments>
-  
-  <workingdirectory>C:\Users\Leand\OneDrive\Desktop\appfamiliar</workingdirectory>
-  
-  <log mode="roll">
-    <logpath>C:\Users\Leand\OneDrive\Desktop\appfamiliar\logs</logpath>
+  <name>ThéoOS - Bot Telegram</name>
+  <description>Bot Telegram ThéoOS (cupom, lista, comandos). Inicia com o Windows.</description>
+
+  <!-- WinSW: copie WinSW-x64.exe para a pasta do projeto como theoos-bot.exe -->
+  <executable>cmd</executable>
+  <arguments>/c "%BASE%\scripts\winsw-bot.cmd"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <depend>Tcpip</depend>
+  <depend>Dnscache</depend>
+
+  <env name="PYTHONUNBUFFERED" value="1"/>
+  <env name="THEOOS_SERVICE" value="1"/>
+  <env name="THEOOS_PYTHON" value="C:\Users\Leand\AppData\Local\Programs\Python\Python313\python.exe"/>
+
+  <logpath>%BASE%\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
   </log>
+
+  <onfailure action="restart" delay="15 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <stoptimeout>20 sec</stoptimeout>
+  <starttimeout>120 sec</starttimeout>
 </service>

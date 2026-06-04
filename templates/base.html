@@ -1,442 +1,255 @@
+{% from 'macros/ui.html' import flash_messages %}
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="{{ ui_theme|default('dark') }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Dashboard{% endblock %} — ThéoOS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/theoos.css') }}">
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<meta name="theme-color" content="#0C0E12">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/theoos-notify.js') }}" defer></script>
 {% block head_extra %}{% endblock %}
-<style>
-@font-face {
-  font-family: 'RobotoDigits';
-  src: local('Roboto'), local('Roboto Regular'), local('Roboto-Regular'), url('https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2') format('woff2');
-  unicode-range: U+0030-0039, U+002C, U+002E, U+0025, U+002B, U+2212, U+0052, U+0024;
-}
-
-:root {
-  --bg:          #090908;
-  --bg-card:     #12110F;
-  --bg-elevated: #1A1916;
-  --bg-hover:    #23211D;
-  --gold:        #E5A138;
-  --gold-dim:    #A36F1E;
-  --gold-glow:   rgba(229,161,56,.08);
-  --sage:        #78B38D;
-  --sage-dim:    rgba(120,179,141,.12);
-  --terra:       #CC6E58;
-  --terra-dim:   rgba(204,110,88,.12);
-  --cream:       #ECE5D8;
-  --muted:       #8E8272;
-  --faint:       #2A2722;
-  --border:      rgba(229,161,56,.14);
-  --radius:      16px;
-  --radius-sm:   10px;
-  --sidebar-w:   250px;
-  --topbar-h:    60px;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
-body {
-  background: var(--bg);
-  color: var(--cream);
-  font-family: 'RobotoDigits', 'Outfit', sans-serif;
-  font-weight: 400;
-  min-height: 100vh;
-}
-.font-roboto,
-.kpi-value,
-.kpi-delta,
-.total-value,
-.bill-val,
-.bill-amount,
-.list-row-qty,
-.list-row-unit,
-.list-qty,
-.tx-amount,
-.tx-meta,
-.price-badge,
-.table-footer-value,
-.period-card-value,
-.variation-change-val,
-.donut-val,
-.budget-amounts,
-.progress-label,
-.bill-due,
-.kpi-unit,
-.kpi-currency,
-.currency,
-.item-qty,
-.item-val,
-.nota-valor,
-.nota-date,
-input[type="date"],
-input[type="number"],
-input.row-cb,
-input.compare-checkbox {
-  font-family: 'Roboto', sans-serif !important;
-}
-body::before {
-  content: '';
-  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  opacity: .4;
-}
-
-/* ── LAYOUT ── */
-.shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  min-height: 100vh;
-}
-
-/* ── SIDEBAR ── */
-.sidebar {
-  background: var(--bg-card);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  padding: 32px 0;
-  position: sticky; top: 0;
-  height: 100vh; overflow-y: auto; overflow-x: hidden;
-}
-.logo { padding: 0 24px 28px; border-bottom: 1px solid var(--faint); }
-.logo-mark {
-  font-family: 'RobotoDigits', 'Cormorant Garamond', serif;
-  font-size: 30px; font-weight: 300; letter-spacing: -.5px; color: var(--cream); line-height: 1;
-}
-.logo-mark em { font-style: italic; color: var(--gold); }
-.logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
-.nav-section { padding: 18px 12px 0; flex: 1; display: flex; flex-direction: column; }
-.nav-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); padding: 0 12px; margin-bottom: 6px; }
-.nav-spacer { height: 14px; }
-.nav-item {
-  display: flex; align-items: center; gap: 11px;
-  padding: 12px 14px; border-radius: var(--radius-sm);
-  color: var(--muted); font-size: 14px; text-decoration: none;
-  transition: all .2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; margin-bottom: 2px;
-}
-.nav-item:hover { background: var(--bg-hover); color: var(--cream); transform: translateX(3px); }
-.nav-item.active { background: var(--gold-glow); color: var(--gold); font-weight: 500; border-left: 2px solid var(--gold); border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.nav-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: .65; transition: opacity .2s; }
-.nav-item.active .nav-icon, .nav-item:hover .nav-icon { opacity: 1; }
-.nav-badge {
-  margin-left: auto; background: var(--gold); color: var(--bg);
-  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; min-width: 20px; text-align: center;
-}
-.bot-status {
-  margin: 16px 14px 0;
-  padding: 12px 14px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.bot-status-row { display: flex; align-items: center; gap: 8px; }
-.bot-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: var(--sage);
-  box-shadow: 0 0 8px var(--sage); flex-shrink: 0;
-  animation: pulse-dot 2s infinite;
-}
-@keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:.3; } }
-.bot-name { font-size: 13px; font-weight: 500; color: var(--cream); }
-.bot-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
-
-/* ── MOBILE TOPBAR ── */
-.mobile-topbar {
-  display: none;
-  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  height: var(--topbar-h);
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  align-items: center; justify-content: space-between;
-  padding: 0 16px;
-}
-.mobile-logo { font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 300; color: var(--cream); }
-.mobile-logo em { font-style: italic; color: var(--gold); }
-.hamburger {
-  width: 38px; height: 38px; border-radius: var(--radius-sm);
-  background: var(--bg-elevated); border: 1px solid var(--faint);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  cursor: pointer;
-}
-.hamburger span {
-  display: block; width: 18px; height: 1.5px; background: var(--cream);
-  border-radius: 1px; transition: all .25s;
-}
-.hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
-.hamburger.open span:nth-child(2) { opacity: 0; }
-.hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
-
-/* Mobile sidebar overlay */
-.sidebar-overlay {
-  display: none; position: fixed; inset: 0; z-index: 150;
-  background: rgba(0,0,0,.6); backdrop-filter: blur(2px);
-}
-.sidebar-overlay.open { display: block; }
-
-/* ── MAIN ── */
-.main {
-  overflow-y: auto;
-  padding: 36px 36px 56px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* ── BUTTONS ── */
-.btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; border-radius: var(--radius-sm);
-  font-family: 'RobotoDigits', 'Outfit', sans-serif; font-size: 13.5px; font-weight: 500;
-  border: none; cursor: pointer; text-decoration: none; transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
-}
-.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--faint); }
-.btn-ghost:hover { background: var(--bg-elevated); color: var(--cream); border-color: var(--border); }
-.btn-primary { background: var(--gold); color: var(--bg); font-weight: 600; }
-.btn-primary:hover { background: #f2ad42; transform: translateY(-1.5px); box-shadow: 0 4px 18px rgba(229,161,56,.35); }
-.btn-sage { background: var(--sage-dim); color: var(--sage); border: 1px solid rgba(120,179,141,.2); }
-.btn-sage:hover { background: rgba(120,179,141,.2); transform: translateY(-1px); }
-.btn-terra { background: var(--terra-dim); color: var(--terra); border: 1px solid rgba(204,110,88,.2); }
-.btn-terra:hover { background: rgba(204,110,88,.18); transform: translateY(-1px); }
-.btn-sm { padding: 7px 12px; font-size: 12px; }
-
-/* ── PANEL ── */
-.panel {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-}
-.panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 24px 14px; border-bottom: 1px solid var(--faint);
-}
-.panel-title { font-family: 'RobotoDigits', 'Cormorant Garamond', serif; font-size: 20px; font-weight: 400; color: var(--cream); letter-spacing: -.3px; }
-.panel-action { font-size: 13px; color: var(--gold); text-decoration: none; font-weight: 500; transition: opacity .15s; }
-.panel-action:hover { opacity: .7; }
-.panel-body { padding: 20px 24px; }
-
-/* ── FORM ELEMENTS ── */
-.form-group { margin-bottom: 18px; }
-.form-label { display: block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.form-input, .form-select {
-  width: 100%; background: var(--bg-elevated); border: 1px solid var(--faint);
-  border-radius: var(--radius-sm); color: var(--cream);
-  font-family: 'RobotoDigits', 'Outfit', sans-serif; font-size: 14.5px; padding: 12px 14px;
-  transition: all .2s; -webkit-appearance: none;
-}
-.form-input:focus, .form-select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(229,161,56,.08); }
-.form-input::placeholder { color: var(--muted); }
-.form-select option { background: var(--bg-elevated); }
-
-/* ── TABLE ── */
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th {
-  font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--muted); font-weight: 500; padding: 12px 16px; text-align: left;
-  border-bottom: 1px solid var(--faint);
-}
-.data-table td { padding: 13px 16px; border-bottom: 1px solid var(--faint); font-size: 13.5px; }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: var(--bg-hover); }
-
-/* ── CHIPS ── */
-.chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 500; padding: 4px 10px; border-radius: 20px; background: var(--bg-hover); color: var(--cream); border: 1px solid var(--border); }
-.chip-hortifruti { background: var(--sage-dim); color: var(--sage); }
-.chip-supermercado { background: var(--gold-glow); color: var(--gold); }
-.chip-farmacia { background: var(--terra-dim); color: var(--terra); }
-.chip-suplemento { background: rgba(100,130,200,.15); color: #8099CC; }
-.chip-outros { background: var(--faint); color: var(--muted); }
-.chip-contas { background: rgba(150,100,200,.15); color: #AA88CC; }
-.chip-contasfixas { background: rgba(150,100,200,.15); color: #AA88CC; }
-
-/* ── SCROLL ── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 10px; }
-
-/* ── ANIMATIONS ── */
-@keyframes reveal { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
-.reveal { animation: reveal .5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.reveal-1 { animation-delay: .05s; }
-.reveal-2 { animation-delay: .10s; }
-.reveal-3 { animation-delay: .15s; }
-.reveal-4 { animation-delay: .20s; }
-
-/* ── PAGE HEADER ── */
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
-.page-heading { font-family: 'RobotoDigits', 'Cormorant Garamond', serif; font-size: 34px; font-weight: 300; letter-spacing: -.5px; line-height: 1.1; }
-.page-heading em { font-style: italic; color: var(--gold); }
-.page-sub { font-size: 13.5px; color: var(--muted); margin-top: 5px; }
-.page-actions { display: flex; gap: 10px; margin-top: 4px; flex-shrink: 0; }
-
-/* ── ALERTS / EMPTY ── */
-.alert { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13.5px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.alert-warning { background: rgba(229,161,56,.08); border: 1px solid rgba(229,161,56,.15); color: var(--gold); }
-.alert-danger { background: var(--terra-dim); border: 1px solid rgba(204,110,88,.15); color: var(--terra); }
-.alert-success { background: var(--sage-dim); border: 1px solid rgba(120,179,141,.15); color: var(--sage); }
-.empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
-.empty-state-icon { font-size: 38px; margin-bottom: 12px; }
-.empty-state p { font-size: 14.5px; }
-
-/* ── RESPONSIVE ── */
-@media (max-width: 768px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar {
-    position: fixed; top: 0; left: 0; bottom: 0; z-index: 160;
-    width: min(var(--sidebar-w), 85vw);
-    transform: translateX(-110%);
-    transition: transform .28s cubic-bezier(.4,0,.2,1);
-    padding-top: 20px;
-    height: 100dvh;
-  }
-  .sidebar.open { transform: translateX(0); box-shadow: 4px 0 32px rgba(0,0,0,.5); }
-  .mobile-topbar { display: flex; }
-  .main { padding: calc(var(--topbar-h) + 16px) 16px 60px; margin-top: 0; gap: 18px; }
-}
-
 {% block styles %}{% endblock %}
-</style>
 </head>
 <body>
 
-<!-- Mobile Topbar -->
 <div class="mobile-topbar">
   <div class="mobile-logo">Théo<em>OS</em></div>
   <div style="display:flex;align-items:center;gap:10px">
     {% if nav_pendentes > 0 %}
-    <a href="/lista" style="background:var(--gold);color:var(--bg);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;text-decoration:none">
-      🛒 {{ nav_pendentes }}
+    <a href="/lista" class="nav-badge" style="text-decoration:none" aria-label="{{ nav_pendentes }} itens na lista">
+      {{ nav_pendentes }}
     </a>
     {% endif %}
-    <div class="hamburger" id="hamburger" onclick="toggleSidebar()">
+    <button type="button" class="menu-btn" id="menu-btn" aria-expanded="false" aria-controls="sidebar" aria-label="Abrir menu">
       <span></span><span></span><span></span>
-    </div>
+    </button>
   </div>
 </div>
 
-<!-- Sidebar Overlay (mobile) -->
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()" hidden></div>
 
 <div class="shell">
-
   <aside class="sidebar" id="sidebar">
     <div class="logo">
       <div class="logo-mark">Théo<em>OS</em></div>
       <div class="logo-sub">Gestão Familiar</div>
     </div>
-    <nav class="nav-section">
-      <div class="nav-label">Principal</div>
+    <nav class="nav-section" aria-label="Navegação principal">
+      <div class="nav-label">Casa</div>
       <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         Dashboard
       </a>
+
+      <div class="nav-spacer"></div>
+      <div class="nav-label">Compras</div>
       <a href="/lista" class="nav-item {% if request.path == '/lista' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.97-1.67L23 6H6"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.97-1.67L23 6H6"/></svg>
         Lista de Compras
         {% if nav_pendentes > 0 %}<span class="nav-badge">{{ nav_pendentes }}</span>{% endif %}
       </a>
       <a href="/upload_nota" class="nav-item {% if request.path == '/upload_nota' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
         Processar Cupom
       </a>
-      <a href="/relatorios" class="nav-item {% if request.path == '/relatorios' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
-        Relatórios
-      </a>
       <a href="/pesquisa" class="nav-item {% if request.path == '/pesquisa' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         Detetive de Preços
       </a>
+
       <div class="nav-spacer"></div>
-      <div class="nav-label">Financeiro</div>
+      <div class="nav-label">Finanças</div>
       <a href="/contas" class="nav-item {% if request.path == '/contas' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         Contas a Pagar
       </a>
       <a href="/receber" class="nav-item {% if request.path == '/receber' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M12 17V7m-5 5h10"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M12 17V7m-5 5h10"/></svg>
         Contas a Receber
       </a>
       <a href="/orcamento" class="nav-item {% if request.path == '/orcamento' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Orçamento
       </a>
+      <a href="/relatorios" class="nav-item {% if request.path == '/relatorios' %}active{% endif %}" onclick="closeSidebar()">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
+        Relatórios
+      </a>
+
+      <div class="nav-spacer"></div>
+      <div class="nav-label">Config</div>
       <a href="/categorias" class="nav-item {% if request.path == '/categorias' %}active{% endif %}" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h7"/><circle cx="18" cy="18" r="3"/><path d="m21 21-1.5-1.5"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h7"/><circle cx="18" cy="18" r="3"/><path d="m21 21-1.5-1.5"/></svg>
         Categorias
       </a>
       <a href="/exportar" class="nav-item" onclick="closeSidebar()">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Exportar CSV
+      </a>
+      <a href="/config" class="nav-item {% if request.path == '/config' %}active{% endif %}" onclick="closeSidebar()">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Configurações
       </a>
     </nav>
     <div class="bot-status">
-      <div class="bot-status-row">
-        <div class="bot-dot"></div>
+      <div class="bot-status-row" style="display:flex;align-items:center;gap:8px">
+        <div class="bot-dot" aria-hidden="true"></div>
         <div>
-          <div class="bot-name">Bot Telegram</div>
-          <div class="bot-sub">online • aguardando</div>
+          <div class="bot-name" style="font-size:13px;font-weight:500">Bot Telegram</div>
+          <div class="bot-sub" style="font-size:11px;color:var(--text-secondary)">online</div>
         </div>
       </div>
     </div>
   </aside>
 
-  <main class="main">
+  <main class="main" id="main-content">
     {% block conteudo %}{% endblock %}
   </main>
-
 </div>
 
-<!-- Premium Media Preview Modal -->
-<div class="sidebar-overlay" id="preview-modal" onclick="closePreviewModal(event)" style="display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(9, 9, 8, 0.92); backdrop-filter: blur(12px); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease;">
-  <div style="position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 2010;">
-    <button onclick="zoomPreview(1.2)" class="btn btn-ghost" style="width: 42px; height: 42px; border-radius: 50%; padding: 0; justify-content: center; font-size: 20px;" title="Aumentar Zoom">＋</button>
-    <button onclick="zoomPreview(0.8)" class="btn btn-ghost" style="width: 42px; height: 42px; border-radius: 50%; padding: 0; justify-content: center; font-size: 20px;" title="Diminuir Zoom">－</button>
-    <button onclick="rotatePreview()" class="btn btn-ghost" style="width: 42px; height: 42px; border-radius: 50%; padding: 0; justify-content: center; font-size: 20px;" title="Rotacionar">⟳</button>
-    <button onclick="closePreviewModal(null)" class="btn btn-primary" style="width: 42px; height: 42px; border-radius: 50%; padding: 0; justify-content: center; font-size: 18px;" title="Fechar">✕</button>
+<div class="preview-modal" id="preview-modal" role="dialog" aria-modal="true" aria-label="Visualizar comprovante" onclick="closePreviewModal(event)">
+  <div class="preview-toolbar">
+    <button type="button" onclick="zoomPreview(1.2)" class="btn btn-ghost btn-icon" aria-label="Aumentar zoom">+</button>
+    <button type="button" onclick="zoomPreview(0.8)" class="btn btn-ghost btn-icon" aria-label="Diminuir zoom">−</button>
+    <button type="button" onclick="rotatePreview()" class="btn btn-ghost btn-icon" aria-label="Rotacionar">↻</button>
+    <button type="button" onclick="closePreviewModal(null)" class="btn btn-primary btn-icon" aria-label="Fechar">×</button>
   </div>
-  <div class="preview-content-wrapper" style="max-width: 90vw; max-height: 85vh; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 20px;">
-    <img id="preview-img" src="" alt="Comprovante" style="max-width: 100%; max-height: 80vh; border-radius: var(--radius-sm); border: 1px solid var(--border); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 24px 64px rgba(0,0,0,0.85); transform-origin: center;">
-    <iframe id="preview-pdf" src="" style="width: 80vw; height: 80vh; border-radius: var(--radius-sm); border: 1px solid var(--border); display: none;"></iframe>
+  <div class="preview-content-wrapper" style="max-width:90vw;max-height:85vh;display:flex;align-items:center;justify-content:center;overflow:auto;padding:20px" onclick="event.stopPropagation()">
+    <img id="preview-img" src="" alt="Comprovante" style="max-width:100%;max-height:80vh;border-radius:var(--radius-sm);border:1px solid var(--border)">
+    <iframe id="preview-pdf" src="" title="PDF do comprovante" style="width:80vw;height:80vh;border-radius:var(--radius-sm);border:1px solid var(--border);display:none"></iframe>
   </div>
 </div>
 
 <script>
+window.TheoOS = window.TheoOS || {};
+
+TheoOS.chartColors = function() {
+  const s = getComputedStyle(document.documentElement);
+  const g = (v) => s.getPropertyValue(v).trim();
+  return {
+    brand: g('--brand') || '#2DD4BF',
+    debit: g('--chart-debit') || '#F87171',
+    credit: g('--chart-credit') || '#34D399',
+    grid: g('--chart-grid') || 'rgba(255,255,255,0.06)',
+    tick: g('--text-secondary') || '#9AA4B2',
+    tooltipBg: g('--chart-tooltip-bg') || '#161B22',
+    text: g('--text-primary') || '#F0F3F8',
+    palette: [0,1,2,3,4,5].map(i => g(`--chart-palette-${i}`) || '#2DD4BF'),
+    font: "'Inter', sans-serif"
+  };
+};
+
+TheoOS.defaultChartOptions = function() {
+  const c = TheoOS.chartColors();
+  return {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: c.tick, font: { family: c.font, size: 11 } } },
+      tooltip: {
+        backgroundColor: c.tooltipBg,
+        titleColor: c.tick,
+        bodyColor: c.text,
+        borderColor: 'rgba(45,212,191,0.2)',
+        borderWidth: 1,
+        padding: 10
+      }
+    },
+    scales: {
+      x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { family: c.font, size: 10 }, maxTicksLimit: 7 } },
+      y: { grid: { color: c.grid }, ticks: { color: c.tick, font: { family: c.font, size: 10 } } }
+    }
+  };
+};
+
 function toggleSidebar() {
-  const open = document.getElementById('sidebar').classList.toggle('open');
+  const sidebar = document.getElementById('sidebar');
+  const open = !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', open);
   document.getElementById('sidebar-overlay').classList.toggle('open', open);
-  document.getElementById('hamburger').classList.toggle('open', open);
+  document.getElementById('sidebar-overlay').hidden = !open;
+  const btn = document.getElementById('menu-btn');
+  if (btn) {
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+  }
   document.body.style.overflow = open ? 'hidden' : '';
 }
+
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('open');
-  document.getElementById('hamburger').classList.remove('open');
+  document.getElementById('sidebar-overlay').hidden = true;
+  const btn = document.getElementById('menu-btn');
+  if (btn) {
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Abrir menu');
+  }
   document.body.style.overflow = '';
 }
-// Close on Escape
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
 
-// Fullscreen Media Preview Logic
-let currentZoom = 1;
-let currentRotation = 0;
+document.getElementById('menu-btn')?.addEventListener('click', toggleSidebar);
+
+function closeOpenModals() {
+  document.querySelectorAll('.modal-overlay.open').forEach(m => {
+    m.classList.remove('open');
+  });
+  if (!document.querySelector('.modal-overlay.open') && !document.getElementById('preview-modal')?.classList.contains('is-open')) {
+    document.body.style.overflow = '';
+  }
+}
+
+TheoOS.trapModalFocus = function(overlay) {
+  if (!overlay?.classList.contains('open')) return;
+  const sel = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const nodes = [...overlay.querySelectorAll(sel)].filter(el => el.offsetParent !== null);
+  if (!nodes.length) return;
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  first.focus();
+  overlay.addEventListener('keydown', function onTab(e) {
+    if (e.key !== 'Tab') return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+};
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  const obs = new MutationObserver(() => {
+    if (overlay.classList.contains('open')) {
+      document.body.style.overflow = 'hidden';
+      TheoOS.trapModalFocus(overlay);
+    }
+  });
+  obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('sidebar').classList.contains('open')) closeSidebar();
+    if (document.getElementById('preview-modal').classList.contains('is-open')) closePreviewModal(null);
+    if (document.querySelector('.modal-overlay.open')) closeOpenModals();
+  }
+});
+
+let currentZoom = 1, currentRotation = 0;
 
 function previewMedia(url) {
   const modal = document.getElementById('preview-modal');
   const img = document.getElementById('preview-img');
   const pdf = document.getElementById('preview-pdf');
-  
-  currentZoom = 1;
-  currentRotation = 0;
-  
+  currentZoom = 1; currentRotation = 0;
   if (url.toLowerCase().endsWith('.pdf')) {
     img.style.display = 'none';
     pdf.style.display = 'block';
@@ -447,101 +260,73 @@ function previewMedia(url) {
     img.src = url;
     img.style.transform = 'scale(1) rotate(0deg)';
   }
-  
-  modal.style.display = 'flex';
-  setTimeout(() => {
-    modal.style.opacity = '1';
-  }, 10);
+  modal.classList.add('is-open');
   document.body.style.overflow = 'hidden';
 }
 
 function closePreviewModal(e) {
-  if (e === null || e.target === document.getElementById('preview-modal') || e.target.classList.contains('preview-content-wrapper')) {
+  if (e === null || e.target === document.getElementById('preview-modal')) {
     const modal = document.getElementById('preview-modal');
-    modal.style.opacity = '0';
-    setTimeout(() => {
-      modal.style.display = 'none';
-      document.getElementById('preview-img').src = '';
-      document.getElementById('preview-pdf').src = '';
-    }, 250);
+    modal.classList.remove('is-open');
+    document.getElementById('preview-img').src = '';
+    document.getElementById('preview-pdf').src = '';
     document.body.style.overflow = '';
   }
 }
 
 function zoomPreview(factor) {
-  currentZoom *= factor;
-  currentZoom = Math.min(Math.max(currentZoom, 0.5), 3);
-  updatePreviewTransform();
-}
-
-function rotatePreview() {
-  currentRotation = (currentRotation + 90) % 360;
-  updatePreviewTransform();
-}
-
-function updatePreviewTransform() {
+  currentZoom = Math.min(Math.max(currentZoom * factor, 0.5), 3);
   const img = document.getElementById('preview-img');
   img.style.transform = `scale(${currentZoom}) rotate(${currentRotation}deg)`;
 }
 
-// Dynamic Category Addition Handler
+function rotatePreview() {
+  currentRotation = (currentRotation + 90) % 360;
+  zoomPreview(1);
+}
+
 document.addEventListener('change', function(e) {
-  if (e.target && e.target.classList.contains('category-select') && e.target.value === '__NEW__') {
+  if (e.target?.classList.contains('category-select') && e.target.value === '__NEW__') {
     const selectEl = e.target;
-    const novaCat = prompt("Digite o nome da nova categoria:");
-    if (novaCat && novaCat.trim() !== '') {
-      const nomeFormatado = novaCat.trim();
+    const novaCat = prompt('Digite o nome da nova categoria:');
+    if (novaCat?.trim()) {
       fetch('/api/categorias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: nomeFormatado })
+        body: JSON.stringify({ nome: novaCat.trim() })
       })
       .then(r => r.json())
       .then(data => {
         if (data.sucesso) {
-          // Update all select elements with class category-select
-          const selects = document.querySelectorAll('.category-select');
-          selects.forEach(sel => {
-            let optExists = false;
-            for (let i = 0; i < sel.options.length; i++) {
-              if (sel.options[i].value === data.nome) {
-                optExists = true;
-                break;
-              }
-            }
-            if (!optExists) {
+          document.querySelectorAll('.category-select').forEach(sel => {
+            if (![...sel.options].some(o => o.value === data.nome)) {
               const opt = document.createElement('option');
               opt.value = data.nome;
               opt.textContent = data.nome;
-              // Insert before the last option (__NEW__)
               sel.insertBefore(opt, sel.options[sel.options.length - 1]);
             }
           });
           selectEl.value = data.nome;
         } else {
-          alert(data.erro || "Erro ao adicionar categoria.");
+          alert(data.erro || 'Erro ao adicionar categoria.');
           selectEl.value = 'Outros';
         }
       })
-      .catch(err => {
-        console.error(err);
-        alert("Erro ao se conectar com o servidor.");
-        selectEl.value = 'Outros';
-      });
+      .catch(() => { alert('Erro ao se conectar com o servidor.'); selectEl.value = 'Outros'; });
     } else {
       selectEl.value = 'Outros';
     }
   }
 });
-
-// Add Escape key handler for preview modal
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.getElementById('preview-modal').style.display === 'flex') {
-    closePreviewModal(null);
-  }
-});
 </script>
 
 {% block scripts %}{% endblock %}
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('{{ url_for("static", filename="sw.js") }}').catch(() => {});
+  });
+}
+</script>
 </body>
 </html>

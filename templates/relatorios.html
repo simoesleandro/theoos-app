@@ -1,218 +1,11 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
+{% from 'macros/ui.html' import flash_messages, chip, empty_state %}
 {% block title %}Relatórios{% endblock %}
 
-{% block styles %}
-.total-banner {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 22px 28px;
-  display: flex; align-items: center; justify-content: space-between;
-}
-.total-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.total-value { font-family: 'Cormorant Garamond', serif; font-size: 42px; font-weight: 300; letter-spacing: -1.5px; line-height: 1; }
-.total-currency { font-size: 20px; color: var(--gold); margin-right: 3px; vertical-align: 7px; }
-.charts-row { display: grid; grid-template-columns: 1fr 300px; gap: 18px; }
-.chart-wrap { padding: 6px 22px 22px; }
-.chart-legend { display: flex; gap: 18px; padding: 0 22px 12px; }
-.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
-.legend-dot { width: 7px; height: 7px; border-radius: 50%; }
-.donut-wrap { display: flex; flex-direction: column; align-items: center; padding: 16px 22px 20px; }
-.donut-legend { width: 100%; margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-.donut-legend-item { display: flex; align-items: center; gap: 8px; }
-.donut-legend-label { font-size: 11px; color: var(--muted); width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.donut-bar-wrap { flex: 1; height: 3px; background: var(--faint); border-radius: 2px; overflow: hidden; }
-.donut-bar { height: 100%; border-radius: 2px; }
-.donut-val { font-family: 'Cormorant Garamond', serif; font-size: 14px; color: var(--cream); width: 60px; text-align: right; flex-shrink: 0; }
-.nota-card { border-bottom: 1px solid var(--faint); }
-.nota-card:last-child { border-bottom: none; }
-.nota-header {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 22px; cursor: pointer; transition: background .15s; user-select: none;
-}
-.nota-header:hover { background: var(--bg-hover); }
-.nota-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-.nota-info { flex: 1; min-width: 0; }
-.nota-desc { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nota-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.nota-valor { font-family: 'Cormorant Garamond', serif; font-size: 17px; color: var(--terra); flex-shrink: 0; }
-.nota-toggle { color: var(--muted); font-size: 12px; flex-shrink: 0; transition: transform .2s; }
-.nota-toggle.open { transform: rotate(180deg); }
-.nota-itens { display: none; padding: 0 22px 14px; }
-.nota-itens.open { display: block; }
-.nota-itens table { width: 100%; border-collapse: collapse; }
-.nota-itens th { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--faint); }
-.nota-itens td { font-size: 12.5px; padding: 8px 10px; border-bottom: 1px solid rgba(44,40,32,.5); }
-.nota-itens tr:last-child td { border-bottom: none; }
-.pagination { display: flex; align-items: center; gap: 6px; justify-content: center; padding: 20px; }
-.page-btn {
-  width: 34px; height: 34px; border-radius: var(--radius-sm);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; text-decoration: none; border: 1px solid var(--faint);
-  color: var(--muted); transition: all .15s;
-}
-.page-btn:hover { border-color: var(--border); color: var(--cream); background: var(--bg-elevated); }
-.page-btn.active { background: var(--gold); color: var(--bg); border-color: var(--gold); font-weight: 600; }
-.page-btn.disabled { opacity: .3; pointer-events: none; }
-
-@media (max-width: 768px) {
-  .charts-row { grid-template-columns: 1fr; }
-  .total-banner { flex-direction: column; gap: 12px; align-items: flex-start; }
-  .total-value { font-size: 34px; }
-  .page-header { flex-direction: column; gap: 12px; }
-  .page-actions { width: 100%; }
-  .page-actions .btn { flex: 1; justify-content: center; }
-  .nota-itens { overflow-x: auto; }
-  .nota-itens table { min-width: 420px; }
-}
-
-/* KPI Styles */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 18px;
-  margin-top: 18px;
-}
-.kpi-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  position: relative;
-  overflow: hidden;
-}
-.kpi-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: var(--gold); opacity: .4;
-}
-.kpi-card.danger-card { border-color: rgba(204,110,88,.3); }
-.kpi-card.danger-card::before { background: var(--terra); opacity: .6; }
-.kpi-card.warning-card { border-color: rgba(229,161,56,.3); }
-.kpi-card.warning-card::before { background: var(--gold); opacity: .6; }
-.kpi-title {
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-.kpi-value {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 28px;
-  font-weight: 300;
-}
-.kpi-value-text {
-  font-family: 'Outfit', sans-serif;
-  font-size: 20px;
-  font-weight: 400;
-  color: var(--cream);
-  margin-top: 4px;
-}
-.kpi-sub { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
-
-/* Period Filter */
-.period-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
-}
-.period-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--faint);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  text-align: center;
-}
-.period-card-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.period-card-value { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 300; }
-.period-tables {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.quick-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-
-@media (max-width: 768px) {
-  .period-tables { grid-template-columns: 1fr; }
-  .quick-btns { flex-direction: column; }
-}
-
-/* Price Variation Styles */
-.variation-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-.variation-card {
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.variation-info {
-  flex: 1;
-  min-width: 0;
-}
-.variation-product {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--cream);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 4px;
-}
-.variation-dates {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.4;
-}
-.variation-badge {
-  text-align: right;
-  flex-shrink: 0;
-}
-.variation-change {
-  font-size: 20px;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.variation-change-val {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 18px;
-}
-.variation-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-top: 2px;
-}
-.color-saving {
-  color: #6FA882;
-}
-.color-hike {
-  color: #C5604A;
-}
-.hidden-row {
-  display: none;
-}
-{% endblock %}
+{% block styles %}{% endblock %}
 
 {% block conteudo %}
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% for cat, msg in messages %}
-  <div class="flash-msg flash-{{ cat }}">
-    {% if cat == 'success' %}✓{% elif cat == 'warning' %}⚠{% else %}✕{% endif %}
-    {{ msg }}
-  </div>
-  {% endfor %}
-{% endwith %}
+{{ flash_messages() }}
 
 <div class="page-header reveal">
   <div>
@@ -221,58 +14,58 @@
   </div>
   <div class="page-actions">
     <a href="/" class="btn btn-ghost">← Voltar</a>
-    <a href="/exportar" class="btn btn-primary">
+    <a href="/exportar/pdf" class="btn btn-primary">PDF do mês</a>
+    <a href="/exportar" class="btn btn-ghost">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar CSV
+      CSV
     </a>
   </div>
 </div>
 
-<!-- Total Banner -->
-<div class="total-banner reveal" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; padding: 22px 28px;">
-  <div>
-    <div class="total-label">Total Recebido</div>
-    <div class="total-value" style="color: var(--sage);">{{ total_creditos | dinheiro }}</div>
+<!-- Resumo principal -->
+<div class="kpi-strip kpi-strip--summary reveal">
+  <div class="kpi-card kpi-success kpi-accent">
+    <div class="kpi-label">Total recebido</div>
+    <div class="kpi-value" style="color:var(--success)">{{ total_creditos | dinheiro }}</div>
   </div>
-  <div>
-    <div class="total-label">Total Gasto</div>
-    <div class="total-value" style="color: var(--terra);">{{ total | dinheiro }}</div>
+  <div class="kpi-card kpi-danger kpi-accent">
+    <div class="kpi-label">Total gasto</div>
+    <div class="kpi-value" style="color:var(--danger)">{{ total | dinheiro }}</div>
   </div>
-  <div>
-    <div class="total-label">Saldo Geral</div>
-    <div class="total-value" style="color: {% if saldo_geral >= 0 %}var(--sage){% else %}var(--terra){% endif %};">{{ saldo_geral | dinheiro }}</div>
+  <div class="kpi-card {% if saldo_geral >= 0 %}kpi-success{% else %}kpi-danger{% endif %} kpi-accent">
+    <div class="kpi-label">Saldo geral</div>
+    <div class="kpi-value" style="color:{% if saldo_geral >= 0 %}var(--success){% else %}var(--danger){% endif %}">{{ saldo_geral | dinheiro }}</div>
   </div>
-  <div style="text-align:right">
-    <div class="total-label">Transações</div>
-    <div style="font-family:'RobotoDigits', 'Cormorant Garamond',serif;font-size:32px;font-weight:300">{{ paginacao.total }}</div>
+  <div class="kpi-card kpi-brand kpi-accent">
+    <div class="kpi-label">Transações</div>
+    <div class="kpi-value">{{ paginacao.total }}</div>
+    <div class="kpi-delta">no histórico</div>
   </div>
 </div>
 
-<!-- KPI Grid -->
-<div class="kpi-grid reveal">
-  <div class="kpi-card">
-    <div class="kpi-title">Média por Transação</div>
-    <div class="kpi-value" style="color: var(--gold);">{{ media_gasto | dinheiro }}</div>
+<!-- Métricas -->
+<div class="kpi-strip kpi-strip--metrics reveal">
+  <div class="kpi-card kpi-brand kpi-accent">
+    <div class="kpi-label">Média por transação</div>
+    <div class="kpi-value" style="color:var(--brand)">{{ media_gasto | dinheiro }}</div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-title">Maior Compra</div>
-    <div class="kpi-value" style="color: var(--terra);">{{ maior_compra | dinheiro }}</div>
+  <div class="kpi-card kpi-danger kpi-accent">
+    <div class="kpi-label">Maior compra</div>
+    <div class="kpi-value" style="color:var(--danger)">{{ maior_compra | dinheiro }}</div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-title">Categoria Líder</div>
+  <div class="kpi-card kpi-info kpi-accent">
+    <div class="kpi-label">Categoria líder</div>
     <div class="kpi-value-text">{{ categoria_lider }}</div>
   </div>
-  <!-- Contas Vencidas -->
-  <div class="kpi-card {% if total_vencidas_qtd > 0 %}danger-card{% endif %}">
-    <div class="kpi-title">⚠ Contas Vencidas</div>
-    <div class="kpi-value" style="color: {% if total_vencidas_qtd > 0 %}var(--terra){% else %}var(--muted){% endif %};">{{ total_vencidas_valor | dinheiro }}</div>
-    <div class="kpi-sub">{{ total_vencidas_qtd }} conta{% if total_vencidas_qtd != 1 %}s{% endif %} atrasada{% if total_vencidas_qtd != 1 %}s{% endif %}</div>
+  <div class="kpi-card kpi-danger kpi-accent {% if total_vencidas_qtd == 0 %}kpi-neutral{% endif %}">
+    <div class="kpi-label">Contas vencidas</div>
+    <div class="kpi-value" style="color:{% if total_vencidas_qtd > 0 %}var(--danger){% else %}var(--text-secondary){% endif %}">{{ total_vencidas_valor | dinheiro }}</div>
+    <div class="kpi-delta {% if total_vencidas_qtd > 0 %}down{% endif %}">{{ total_vencidas_qtd }} em atraso</div>
   </div>
-  <!-- Contas a Vencer -->
-  <div class="kpi-card {% if total_a_vencer_qtd > 0 %}warning-card{% endif %}">
-    <div class="kpi-title">📅 A Vencer</div>
-    <div class="kpi-value" style="color: var(--gold);">{{ total_a_vencer_valor | dinheiro }}</div>
-    <div class="kpi-sub">{{ total_a_vencer_qtd }} conta{% if total_a_vencer_qtd != 1 %}s{% endif %} futura{% if total_a_vencer_qtd != 1 %}s{% endif %}</div>
+  <div class="kpi-card kpi-warning kpi-accent">
+    <div class="kpi-label">A vencer</div>
+    <div class="kpi-value" style="color:var(--warning)">{{ total_a_vencer_valor | dinheiro }}</div>
+    <div class="kpi-delta">{{ total_a_vencer_qtd }} futura{% if total_a_vencer_qtd != 1 %}s{% endif %}</div>
   </div>
 </div>
 
@@ -333,10 +126,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="empty-state" style="padding: 20px;">
-        <div class="empty-state-icon">🔍</div>
-        <p>Nenhuma variação de preço relevante registrada ainda (necessita compras em datas distintas).</p>
-      </div>
+      {{ empty_state('Sem variações de preço', 'É preciso o mesmo produto em compras em datas diferentes para comparar evolução.', 'search') }}
     {% endif %}
   </div>
 </div>
@@ -404,10 +194,9 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
           {% for item in previsao_categoria %}
             {% set pct = (item.valor / soma_pagar_periodo * 100) if soma_pagar_periodo > 0 else 0 %}
-            {% set cat_class = item.categoria | lower | replace(' ', '') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
-            <div style="background: var(--bg-elevated); border: 1px solid var(--faint); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
+            <div style="background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                <span class="chip chip-{{ cat_class }}" style="font-size: 10.5px; padding: 2px 8px;">{{ item.categoria }}</span>
+                {{ chip(item.categoria) }}
                 <span style="font-size: 13.5px; font-weight: 600; color: var(--cream);">{{ item.valor | dinheiro }}</span>
               </div>
               <div style="height: 3px; background: var(--faint); border-radius: 1.5px; overflow: hidden; margin-top: 6px;">
@@ -596,9 +385,8 @@
               {% set pct_prev = (item.valor_prev / max_val * 100) if max_val > 0 else 0 %}
               {% set pct_atual = (item.valor_atual / max_val * 100) if max_val > 0 else 0 %}
               {% set pct_next = (item.valor_next / max_val * 100) if max_val > 0 else 0 %}
-              {% set cat_class = item.categoria | lower | replace(' ', '') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
               <tr>
-                <td><span class="chip chip-{{ cat_class }}">{{ item.categoria }}</span></td>
+                <td>{{ chip(item.categoria) }}</td>
                 <td style="text-align: right; color: var(--muted);">{{ item.valor_prev | dinheiro }}</td>
                 <td style="text-align: right; font-weight: 500; color: var(--cream); background: rgba(229,161,56,.02);">{{ item.valor_atual | dinheiro }}</td>
                 <td style="text-align: right; font-weight: 500; color: {% if item.diff_prev_pct > 0 %}var(--terra){% elif item.diff_prev_pct < 0 %}var(--sage){% else %}var(--muted){% endif %};">
@@ -648,70 +436,77 @@
   </div>
 
   {% if notas %}
+    <div class="tx-list" role="list">
     {% for nota in notas %}
-    <div class="nota-card">
-      <div class="nota-header" onclick="toggleNota({{ loop.index }})">
-        <div class="nota-icon">
-          {% if nota.tipo == 'credito' %}
-            💰
-          {% elif 'IA:' in nota.descricao %}
-            🤖
-          {% elif 'Conta' in nota.descricao %}
-            🧾
-          {% else %}
-            🛒
-          {% endif %}
+    <article class="tx-row-wrap" role="listitem">
+      <div class="tx-row-main{% if nota.itens %} is-clickable{% endif %}"
+           {% if nota.itens %}onclick="toggleNota({{ loop.index }})"{% endif %}>
+        <div class="tx-icon" aria-hidden="true">
+          {% if nota.tipo == 'credito' %}↑
+          {% elif 'IA:' in nota.descricao %}◇
+          {% elif 'Conta' in nota.descricao %}◆
+          {% else %}↓{% endif %}
         </div>
-        <div class="nota-info">
-          <div class="nota-desc">{{ nota.descricao }}</div>
-          <div class="nota-date">{{ nota.data.strftime('%d/%m/%Y às %H:%M') }}</div>
+        <div class="tx-info">
+          <div class="tx-desc">{{ nota.descricao }}</div>
+          <div class="tx-meta">{{ nota.data.strftime('%d/%m/%Y às %H:%M') }}{% if nota.itens %} · {{ nota.itens | length }} item{% if nota.itens | length != 1 %}s{% endif %}{% endif %}</div>
         </div>
-        <div class="nota-valor" style="display: flex; align-items: center; gap: 8px; color: {% if nota.tipo == 'credito' %}var(--sage){% else %}var(--terra){% endif %}; font-weight: 500;">
+        <div class="tx-row-actions" onclick="event.stopPropagation()">
           {% if nota.foto_path %}
-            <button onclick="event.stopPropagation(); previewMedia('{{ url_for('static', filename='uploads/boletos/' + nota.foto_path) }}')" class="btn btn-ghost btn-sm" style="padding: 4px 8px; font-size: 11px; height: 26px;" title="Ver comprovante">
-              🖼 Ver
-            </button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="previewMedia('{{ url_for('static', filename='uploads/boletos/' + nota.foto_path) }}')" aria-label="Ver comprovante">Ver</button>
           {% endif %}
-          
-          <form action="/relatorios/deletar/{{ nota.id }}" method="POST" style="display: inline;" onclick="event.stopPropagation();">
-            <button type="submit" class="btn-icon" style="border-radius: 4px; width: 26px; height: 26px; color: var(--terra); border-color: rgba(197,96,74,.2);" 
-                    onclick="return confirm('Tem certeza que deseja excluir esta transação?')" title="Excluir Transação">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          <form action="/relatorios/deletar/{{ nota.id }}" method="POST" style="display:inline;margin:0">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Excluir esta transação?')" aria-label="Excluir transação">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
             </button>
           </form>
-          
-          {% if nota.tipo == 'credito' %}+{% else %}−{% endif %} {{ nota.valor | dinheiro }}
+        </div>
+        <div class="tx-amount-wrap">
+          <div class="tx-amount-value {% if nota.tipo == 'credito' %}credit{% else %}debit{% endif %}">
+            {% if nota.tipo == 'credito' %}+{% else %}−{% endif %}{{ nota.valor | dinheiro }}
+          </div>
         </div>
         {% if nota.itens %}
-        <div class="nota-toggle" id="toggle-{{ loop.index }}">▼</div>
+        <button type="button" class="tx-chevron" id="toggle-{{ loop.index }}" aria-label="Expandir itens" aria-expanded="false" aria-controls="itens-{{ loop.index }}" onclick="event.stopPropagation(); toggleNota({{ loop.index }})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        {% else %}
+        <span class="tx-chevron-placeholder" aria-hidden="true"></span>
         {% endif %}
       </div>
       {% if nota.itens %}
-      <div class="nota-itens" id="itens-{{ loop.index }}">
-        <table>
-          <tr><th>Produto</th><th>Categoria</th><th>Qtd</th><th>Vl. Unit.</th><th>Total</th></tr>
-          {% for item in nota.itens %}
-          <tr>
-            <td>{{ item.nome }}</td>
-            <td>
-              {% set cat = item.categoria | lower | replace(' ', '') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
-              <span class="chip chip-{{ cat }}">{{ item.categoria }}</span>
-            </td>
-            <td>{{ item.quantidade | numero }}</td>
-            <td>{{ item.valor_unitario | dinheiro }}</td>
-            <td style="color:var(--gold)">{{ item.valor_total | dinheiro }}</td>
-          </tr>
-          {% endfor %}
-        </table>
+      <div class="tx-detail" id="itens-{{ loop.index }}" hidden>
+        <div class="tx-detail-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Categoria</th>
+                <th style="text-align:right">Qtd</th>
+                <th style="text-align:right">Unit.</th>
+                <th style="text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in nota.itens %}
+              <tr>
+                <td>{{ item.nome_normalizado or item.nome }}</td>
+                <td>{{ chip(item.categoria) }}</td>
+                <td style="text-align:right">{{ item.quantidade | numero }} {{ item.unidade or 'un' }}</td>
+                <td style="text-align:right">{{ item.valor_unitario | dinheiro }}</td>
+                <td style="text-align:right;font-weight:600;color:var(--brand)">{{ item.valor_total | dinheiro }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
       {% endif %}
-    </div>
+    </article>
     {% endfor %}
-  {% else %}
-    <div class="empty-state">
-      <div class="empty-state-icon">📊</div>
-      <p>Nenhum gasto registrado ainda.</p>
     </div>
+  {% else %}
+    {{ empty_state('Nenhuma transação ainda', 'Registre compras, contas pagas ou cupons processados para ver o histórico aqui.', 'chart', '/upload_nota', 'Processar cupom') }}
   {% endif %}
 
   <!-- Pagination -->
@@ -737,8 +532,11 @@ function toggleNota(i) {
   const itens = document.getElementById('itens-' + i);
   const toggle = document.getElementById('toggle-' + i);
   if (!itens) return;
-  itens.classList.toggle('open');
-  if (toggle) toggle.classList.toggle('open');
+  const open = !itens.classList.contains('open');
+  itens.classList.toggle('open', open);
+  itens.hidden = !open;
+  if (toggle) toggle.classList.toggle('open', open);
+  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function setPeriodo(days) {
@@ -768,17 +566,20 @@ function setCompPeriodo(days) {
 (function() {
   const labels = {{ datas | tojson | safe }};
   const values = {{ valores | tojson | safe }};
+  const c = TheoOS.chartColors();
+  const base = TheoOS.defaultChartOptions();
   const ctx = document.getElementById('lineChart').getContext('2d');
   const grad = ctx.createLinearGradient(0, 0, 0, 200);
-  grad.addColorStop(0, 'rgba(212,146,42,.2)');
-  grad.addColorStop(1, 'rgba(212,146,42,0)');
+  grad.addColorStop(0, 'rgba(45,212,191,0.15)');
+  grad.addColorStop(1, 'rgba(45,212,191,0)');
   new Chart(ctx, {
     type: 'line',
-    data: { labels, datasets: [{ data: values, borderColor:'#D4922A', backgroundColor: grad, borderWidth:1.8, fill:true, tension:0.4, pointRadius:0, pointHoverRadius:5, pointHoverBackgroundColor:'#D4922A' }] },
+    data: { labels, datasets: [{ data: values, borderColor: c.brand || c.palette[0], backgroundColor: grad, borderWidth: 2, fill: true, tension: 0.35, pointRadius: 0 }] },
     options: {
-      responsive: true, interaction: { mode:'index', intersect:false },
-      plugins: { legend:{display:false}, tooltip:{ backgroundColor:'#1C1915', titleColor:'#7A6E5F', bodyColor:'#EDE4CF', borderColor:'rgba(212,146,42,.2)', borderWidth:1, padding:10, callbacks:{ label: c => ` R$ ${c.parsed.y.toFixed(2).replace('.',',')}` }}},
-      scales: { x:{grid:{color:'rgba(44,40,32,.7)'},ticks:{color:'#4A4237',font:{family:'Roboto',size:10},maxTicksLimit:8}}, y:{grid:{color:'rgba(44,40,32,.7)'},ticks:{color:'#4A4237',font:{family:'Roboto',size:10},callback:v=>`R$ ${v}`}} }
+      ...base,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { ...base.plugins, legend: { display: false }, tooltip: { ...base.plugins.tooltip, callbacks: { label: ctx => ` R$ ${ctx.parsed.y.toFixed(2).replace('.', ',')}` } } },
+      scales: { ...base.scales, y: { ...base.scales.y, ticks: { ...base.scales.y.ticks, callback: v => `R$ ${v}` } } }
     }
   });
 })();
@@ -786,20 +587,19 @@ function setCompPeriodo(days) {
 (function() {
   const labels = {{ labels_cat | tojson | safe }};
   const values = {{ valores_cat | tojson | safe }};
-  const palette = ['#D4922A','#6FA882','#8099CC','#C5604A','#A88060','#4A4237'];
-  const chartColors = labels.map((_, i) => palette[i % palette.length]);
-  const ctx = document.getElementById('donutChart').getContext('2d');
-  new Chart(ctx, {
+  const c = TheoOS.chartColors();
+  const colors = labels.map((_, i) => c.palette[i % c.palette.length]);
+  new Chart(document.getElementById('donutChart').getContext('2d'), {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: chartColors, borderColor:'#141210', borderWidth:3, hoverOffset:5 }] },
-    options: { responsive:true, cutout:'70%', plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#1C1915', titleColor:'#7A6E5F', bodyColor:'#EDE4CF', borderColor:'rgba(212,146,42,.2)', borderWidth:1, padding:10, callbacks:{ label: c => ` R$ ${c.parsed.toFixed(2).replace('.',',')}` }}}}
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: c.tooltipBg, borderWidth: 3, hoverOffset: 6 }] },
+    options: { responsive: true, cutout: '70%', plugins: { legend: { display: false }, tooltip: { backgroundColor: c.tooltipBg, titleColor: c.tick, bodyColor: c.text, callbacks: { label: ctx => ` R$ ${ctx.parsed.toFixed(2).replace('.', ',')}` } } } }
   });
-  const total = values.reduce((a,b)=>a+b,0);
+  const total = values.reduce((a, b) => a + b, 0);
   const leg = document.getElementById('donut-legend');
-  labels.forEach((l,i) => {
-    const pct = total > 0 ? values[i]/total*100 : 0;
-    const col = palette[i % palette.length];
-    leg.innerHTML += `<div class="donut-legend-item"><span class="donut-legend-label" style="color:${col}">${l}</span><div class="donut-bar-wrap"><div class="donut-bar" style="width:${pct}%;background:${col}"></div></div><span class="donut-val">R$ ${values[i].toFixed(0)}</span></div>`;
+  labels.forEach((l, i) => {
+    const pct = total > 0 ? values[i] / total * 100 : 0;
+    const col = colors[i];
+    leg.innerHTML += `<div class="donut-legend-item"><span class="donut-legend-label" style="color:${col}">${l}</span><div class="donut-bar-wrap"><div class="donut-bar" style="width:${pct}%;background:${col}"></div></div><span class="donut-val">R$ ${Math.round(values[i]).toLocaleString('pt-BR')}</span></div>`;
   });
 })();
 

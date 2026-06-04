@@ -1,0 +1,72 @@
+{% macro flash_messages() %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="flash-msg flash-{{ cat }}" role="alert">
+    {% if cat == 'success' %}<span aria-hidden="true">✓</span>{% elif cat == 'warning' %}<span aria-hidden="true">!</span>{% else %}<span aria-hidden="true">×</span>{% endif %}
+    {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+{% endmacro %}
+
+{% macro page_header(title, subtitle='', actions='') %}
+<div class="page-header reveal">
+  <div>
+    <h1 class="page-heading">{{ title | safe }}</h1>
+    {% if subtitle %}<p class="page-sub">{{ subtitle }}</p>{% endif %}
+  </div>
+  {% if actions %}
+  <div class="page-actions">{{ actions | safe }}</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro chip(categoria) %}
+<span class="chip {{ chip_class(categoria) }}">{{ categoria }}</span>
+{% endmacro %}
+
+{% macro empty_state(title, description='', icon='inbox', cta_href='', cta_label='') %}
+<div class="empty-state">
+  <div class="empty-state-graphic" aria-hidden="true">
+    {% if icon == 'search' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    {% elif icon == 'cart' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.97-1.67L23 6H6"/></svg>
+    {% elif icon == 'chart' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    {% elif icon == 'upload' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    {% elif icon == 'check' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    {% elif icon == 'wallet' %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    {% else %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    {% endif %}
+  </div>
+  <p class="empty-state-title">{{ title }}</p>
+  {% if description %}<p class="empty-state-desc">{{ description }}</p>{% endif %}
+  {% if cta_href and cta_label %}
+  <a href="{{ cta_href }}" class="btn btn-primary btn-sm empty-state-cta">{{ cta_label }}</a>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro pagination(pag, query_params={}, page_param='page') %}
+{% if pag.pages > 1 %}
+<div class="pagination" role="navigation" aria-label="Paginação">
+  <a href="?{% for k,v in query_params.items() %}{{ k }}={{ v | urlencode }}&{% endfor %}{{ page_param }}={{ pag.prev_num }}"
+     class="page-btn {% if not pag.has_prev %}disabled{% endif %}" {% if not pag.has_prev %}aria-disabled="true" tabindex="-1"{% endif %}>‹</a>
+  {% for p in pag.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+    {% if p %}
+      <a href="?{% for k,v in query_params.items() %}{{ k }}={{ v | urlencode }}&{% endfor %}{{ page_param }}={{ p }}"
+         class="page-btn {% if p == pag.page %}active{% endif %}" {% if p == pag.page %}aria-current="page"{% endif %}>{{ p }}</a>
+    {% else %}
+      <span class="page-btn page-ellipsis" aria-hidden="true">…</span>
+    {% endif %}
+  {% endfor %}
+  <a href="?{% for k,v in query_params.items() %}{{ k }}={{ v | urlencode }}&{% endfor %}{{ page_param }}={{ pag.next_num }}"
+     class="page-btn {% if not pag.has_next %}disabled{% endif %}" {% if not pag.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>›</a>
+</div>
+{% endif %}
+{% endmacro %}

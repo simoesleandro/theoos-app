@@ -1,137 +1,121 @@
 {% extends "base.html" %}
+{% from 'macros/ui.html' import chip, empty_state %}
 {% block title %}Detetive de Preços{% endblock %}
-
-{% block styles %}
-.search-wrap {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 28px;
-  display: flex; gap: 12px; align-items: flex-end;
-}
-.search-field { flex: 1; }
-.search-results-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 4px;
-}
-.results-count { font-size: 12px; color: var(--muted); }
-.price-badge {
-  font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 400; color: var(--sage);
-}
-.price-highest { color: var(--terra); }
-.store-name { font-size: 12px; color: var(--muted); }
-
-@media (max-width: 768px) {
-  .search-wrap { flex-direction: column; gap: 10px; }
-  .search-wrap .btn { width: 100%; justify-content: center; }
-  .page-header { flex-direction: column; gap: 12px; }
-  .panel { overflow-x: auto; }
-  .data-table { min-width: 480px; }
-  div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
-}
-
-.compare-col {
-  width: 36px;
-  text-align: center;
-}
-.compare-checkbox {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--gold);
-  cursor: pointer;
-  vertical-align: middle;
-}
-.data-table th, .data-table td { padding-left: 10px; padding-right: 10px; }
-{% endblock %}
 
 {% block conteudo %}
 <div class="page-header reveal">
   <div>
     <h1 class="page-heading">Detetive de <em>Preços</em></h1>
-    <p class="page-sub">Rastreie o histórico de preços de qualquer produto</p>
+    <p class="page-sub">Histórico e comparador de preços por produto</p>
   </div>
   <div class="page-actions">
-    <a href="/" class="btn btn-ghost">← Voltar</a>
+    <a href="/" class="btn btn-ghost">Voltar</a>
   </div>
 </div>
 
-<!-- Search Bar -->
-<form action="/pesquisa" method="GET">
-  <div class="search-wrap reveal">
-    <div class="search-field">
-      <label class="form-label">Buscar produto</label>
-      <input type="text" name="q" class="form-input" value="{{ termo }}"
-             placeholder="Ex: Iogurte, Arroz, Frango..." autofocus required>
+<div class="search-sticky reveal">
+  <form action="/pesquisa" method="GET">
+    <div class="search-wrap">
+      <div class="search-field">
+        <label class="form-label" for="q">Buscar produto</label>
+        <input type="text" id="q" name="q" class="form-input" value="{{ termo }}"
+               placeholder="Ex: Iogurte, Arroz, Frango..." {% if not termo %}autofocus{% endif %} required>
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Buscar
+      </button>
     </div>
-    <button type="submit" class="btn btn-primary" style="white-space:nowrap">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      Buscar
-    </button>
-  </div>
-</form>
+  </form>
+</div>
 
-<!-- Seção de Itens Populares -->
-<div class="panel reveal" style="margin-top: 18px; padding: 22px 28px;">
-  <div style="font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--gold); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-    📊 Itens frequentes (clique para comparar)
-  </div>
-  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-    {% for item in itens_populares %}
-      <a href="/pesquisa?q={{ item | urlencode }}" class="btn btn-ghost btn-sm" style="border-radius: 20px; border-color: var(--border); background: var(--bg-elevated); color: var(--cream); font-weight: 400; font-size: 12.5px; transition: all 0.2s; padding: 6px 14px;">
-        🔍 {{ item }}
+{% if itens_populares %}
+<div class="panel freq-panel reveal">
+  <div class="panel-body">
+    <div class="freq-title">Itens frequentes</div>
+    <div class="freq-chips">
+      {% for item in itens_populares %}
+      <a href="/pesquisa?q={{ item | urlencode }}" class="chip-link">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        {{ item }}
       </a>
-    {% endfor %}
+      {% endfor %}
+    </div>
   </div>
 </div>
+{% endif %}
+
+{% if mercado_ranking %}
+<div class="panel reveal market-panel">
+  <div class="panel-header">
+    <div class="panel-title">Onde comprar mais barato?</div>
+    <span class="panel-sub">Preço médio unitário por mercado (histórico)</span>
+  </div>
+  <div class="market-chart-wrap"><canvas id="marketChartGlobal" height="120" aria-label="Ranking de mercados"></canvas></div>
+</div>
+{% endif %}
 
 {% if termo %}
 <div class="reveal">
-  <!-- Dynamic Comparison Panel -->
-  <div id="comparison-panel" class="panel reveal" style="display: none; margin-bottom: 18px; border: 1.5px solid var(--gold); background: var(--bg-card);">
-    <div class="panel-header" style="background: rgba(212, 146, 42, 0.05); display: flex; justify-content: space-between; align-items: center; padding: 14px 22px;">
-      <div class="panel-title" style="color: var(--gold); display: flex; align-items: center; gap: 8px; font-size: 14px;">
-        ⚖️ Comparador de Preços 
-        <span id="compare-count" style="font-size: 11px; background: var(--gold); color: var(--bg); padding: 2px 8px; border-radius: 10px; font-weight: bold;">0 selecionados</span>
+  <div id="comparison-panel" class="panel compare-panel compare-panel-desktop" role="region" aria-label="Comparador de preços">
+    <div class="panel-header compare-panel-header">
+      <div class="panel-title" style="color:var(--brand);font-size:var(--text-sm)">
+        Comparador
+        <span id="compare-count" class="compare-badge">0 selecionados</span>
       </div>
-      <button type="button" onclick="limparSelecao()" class="btn btn-ghost btn-sm" style="padding: 4px 8px; font-size: 11px; height: 26px;">Limpar Seleção</button>
+      <button type="button" onclick="limparSelecao()" class="btn btn-ghost btn-sm">Limpar</button>
     </div>
-    <div class="panel-body" style="padding: 20px;">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;" id="compare-details-row">
-        <!-- Cheapest Card -->
-        <div class="panel" style="padding: 14px; border-color: rgba(111,168,130,0.3); background: rgba(111,168,130,0.02);">
-          <div style="font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px;">🟢 Mais Barato</div>
-          <div style="font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 300; color: var(--sage);" id="compare-cheapest-price">R$ 0,00</div>
-          <div style="font-size: 13px; font-weight: 500; margin-top: 4px; color: var(--cream);" id="compare-cheapest-name">-</div>
-          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;" id="compare-cheapest-store">-</div>
+    <div class="panel-body">
+      <div class="compare-grid" id="compare-details-row">
+        <div class="compare-card cheapest">
+          <div class="kpi-label">Mais barato</div>
+          <div class="compare-price cheapest" id="compare-cheapest-price">R$ 0,00</div>
+          <div id="compare-cheapest-name" style="font-weight:500;margin-top:4px">—</div>
+          <div id="compare-cheapest-store" class="tx-meta">—</div>
         </div>
-        
-        <!-- Most Expensive Card -->
-        <div class="panel" style="padding: 14px; border-color: rgba(197,96,74,0.3); background: rgba(197,96,74,0.02);">
-          <div style="font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px;">🔴 Mais Caro</div>
-          <div style="font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 300; color: var(--terra);" id="compare-most-expensive-price">R$ 0,00</div>
-          <div style="font-size: 13px; font-weight: 500; margin-top: 4px; color: var(--cream);" id="compare-most-expensive-name">-</div>
-          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;" id="compare-most-expensive-store">-</div>
+        <div class="compare-card expensive">
+          <div class="kpi-label">Mais caro</div>
+          <div class="compare-price expensive" id="compare-most-expensive-price">R$ 0,00</div>
+          <div id="compare-most-expensive-name" style="font-weight:500;margin-top:4px">—</div>
+          <div id="compare-most-expensive-store" class="tx-meta">—</div>
         </div>
       </div>
-      
-      <!-- Difference / Conclusion Alert -->
-      <div class="panel" style="margin-top: 14px; padding: 12px 16px; border-color: rgba(212,146,42,0.3); background: rgba(212,146,42,0.02); display: flex; align-items: center; justify-content: space-between; gap: 12px;" id="compare-diff-panel">
-        <div style="flex: 1;">
-          <div style="font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted);">Diferença de Preço</div>
-          <div style="font-size: 13px; color: var(--cream); margin-top: 2px;" id="compare-diff-explanation">
-            Selecione pelo menos 2 itens da tabela abaixo para ver a diferença percentual.
+      <div class="panel" style="margin-top:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--brand-dim)">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+          <div id="compare-diff-explanation" class="tx-meta" style="flex:1;color:var(--text-primary)">
+            Selecione pelo menos 2 itens na tabela para comparar.
           </div>
-        </div>
-        <div style="text-align: right; flex-shrink: 0;">
-          <div style="font-family: 'Cormorant Garamond', serif; font-size: 24px; font-weight: 400; color: var(--gold);" id="compare-diff-value">R$ 0,00</div>
-          <div style="font-size: 11px; color: var(--gold); font-weight: 500;" id="compare-diff-pct">0%</div>
+          <div style="text-align:right">
+            <div class="compare-price" style="color:var(--brand);font-size:var(--text-lg)" id="compare-diff-value">R$ 0,00</div>
+            <div class="kpi-delta up" id="compare-diff-pct">0%</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="search-results-header">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:300">
-      Resultados para <em style="color:var(--gold)">"{{ termo }}"</em>
+  <div id="comparison-sheet" class="panel compare-sheet compare-panel" role="region" aria-label="Comparador mobile" hidden>
+    <div class="panel-header compare-panel-header">
+      <div class="panel-title" style="font-size:var(--text-sm)">Comparador <span id="compare-count-mobile" class="compare-badge">0</span></div>
+      <button type="button" onclick="limparSelecao()" class="btn btn-ghost btn-sm">Limpar</button>
     </div>
+    <div class="panel-body" style="padding:var(--space-3)">
+      <p id="compare-sheet-summary" class="tx-meta">Selecione 2+ itens</p>
+    </div>
+  </div>
+
+  {% if mercado_produto %}
+  <div class="panel reveal market-panel">
+    <div class="panel-header">
+      <div class="panel-title">Preço por mercado — {{ termo }}</div>
+      <span class="panel-sub">Último valor registrado em cada loja</span>
+    </div>
+    <div class="market-chart-wrap"><canvas id="marketChartProduct" height="100" aria-label="Preços por mercado"></canvas></div>
+  </div>
+  {% endif %}
+
+  <div class="search-results-header">
+    <div class="results-title">Resultados para <em style="color:var(--brand);font-style:normal">"{{ termo }}"</em></div>
     <div class="results-count">{{ resultados | length }} registro{% if resultados | length != 1 %}s{% endif %}</div>
   </div>
 
@@ -139,167 +123,190 @@
     {% set min_price = resultados | map(attribute='valor_unitario') | min %}
     {% set max_price = resultados | map(attribute='valor_unitario') | max %}
 
-    <div class="panel" style="margin-top:12px">
-      <div style="overflow-x: auto;">
-        <table class="data-table" style="min-width: 1050px;">
-          <thead>
-            <tr>
-              <th class="compare-col">Comparar</th>
-              <th style="width: 100px;">Data</th>
-              <th style="min-width: 140px;">Local</th>
-              <th style="min-width: 180px;">Descrição</th>
-              <th style="min-width: 160px;">Nome Fácil</th>
-              <th style="width: 120px;">Marca</th>
-              <th style="width: 130px;">Categoria</th>
-              <th style="width: 70px;">und.</th>
-              <th style="width: 70px; text-align: right;">Qtd</th>
-              <th style="width: 110px; text-align: right;">Valor Unit.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in resultados %}
-            <tr>
-              <td class="compare-col">
-                <input type="checkbox" class="compare-checkbox" 
-                       data-nome="{{ item.nome_normalizado or item.nome }}"
-                       data-marca="{{ item.marca or '' }}"
-                       data-preco="{{ item.valor_unitario }}"
-                       data-local="{{ item.nota.descricao | replace('IA: ', '') | replace('Compra: ', '') }}"
-                       data-data="{{ item.nota.data.strftime('%d/%m/%Y') }}">
-              </td>
-              <td class="font-roboto" style="color:var(--muted)">{{ item.nota.data.strftime('%d/%m/%Y') }}</td>
-              <td class="store-name">{{ item.nota.descricao | replace('IA: ', '') | replace('Compra: ', '') }}</td>
-              <td style="color: var(--cream); font-size: 13.5px;">{{ item.nome }}</td>
-              <td style="font-weight: 500; color: var(--cream); font-size: 14px;">{{ item.nome_normalizado or '-' }}</td>
-              <td style="color: var(--muted); font-size: 13.5px;">{{ item.marca or '-' }}</td>
-              <td>
-                {% set cat = item.categoria | lower | replace(' ', '') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
-                <span class="chip chip-{{ cat }}">{{ item.categoria }}</span>
-              </td>
-              <td class="font-roboto" style="color:var(--muted)">{{ item.unidade or 'un' }}</td>
-              <td class="font-roboto" style="text-align: right; color: var(--muted);">{{ item.quantidade | numero }}</td>
-              <td style="text-align:right">
-                <span class="price-badge {% if item.valor_unitario == max_price and max_price != min_price %}price-highest{% endif %}">
-                  {{ item.valor_unitario | dinheiro }}
-                </span>
-                {% if item.valor_unitario == min_price and resultados | length > 1 %}
-                  <span style="font-size:10px;color:var(--sage);margin-left:4px">↓ menor</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    <div class="panel pesquisa-table-wrap">
+      <table class="data-table pesquisa-table">
+        <thead>
+          <tr>
+            <th style="width:44px">Cmp</th>
+            <th>Data</th>
+            <th class="col-hide-mobile">Local</th>
+            <th>Produto</th>
+            <th class="col-hide-mobile">Marca</th>
+            <th class="col-hide-mobile">Categoria</th>
+            <th style="text-align:right">Unit.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in resultados %}
+          <tr>
+            <td>
+              <input type="checkbox" class="compare-checkbox" aria-label="Comparar {{ item.nome_normalizado or item.nome }}"
+                     data-nome="{{ item.nome_normalizado or item.nome }}"
+                     data-marca="{{ item.marca or '' }}"
+                     data-preco="{{ item.valor_unitario }}"
+                     data-local="{{ item.nota.descricao | replace('IA: ', '') | replace('Compra: ', '') }}"
+                     data-data="{{ item.nota.data.strftime('%d/%m/%Y') }}">
+            </td>
+            <td class="tx-meta">{{ item.nota.data.strftime('%d/%m/%Y') }}</td>
+            <td class="col-hide-mobile tx-meta">{{ item.nota.descricao | replace('IA: ', '') | replace('Compra: ', '') }}</td>
+            <td>{{ item.nome_normalizado or item.nome }}</td>
+            <td class="col-hide-mobile tx-meta">{{ item.marca or '—' }}</td>
+            <td class="col-hide-mobile">{{ chip(item.categoria) }}</td>
+            <td style="text-align:right">
+              <span class="price-unit {% if item.valor_unitario == max_price and max_price != min_price %}is-max{% endif %}">
+                {{ item.valor_unitario | dinheiro }}
+              </span>
+              {% if item.valor_unitario == min_price and resultados | length > 1 %}
+                <span class="price-tag">menor</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
 
     {% if resultados | length > 1 %}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
-      <div class="panel">
-        <div class="panel-body" style="text-align:center">
-          <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Menor preço encontrado</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--sage)">{{ min_price | dinheiro }}</div>
-        </div>
+    <div class="minmax-row">
+      <div class="panel minmax-card">
+        <div class="minmax-label">Menor preço</div>
+        <div class="minmax-value low">{{ min_price | dinheiro }}</div>
       </div>
-      <div class="panel">
-        <div class="panel-body" style="text-align:center">
-          <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Maior preço encontrado</div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--terra)">{{ max_price | dinheiro }}</div>
-        </div>
+      <div class="panel minmax-card">
+        <div class="minmax-label">Maior preço</div>
+        <div class="minmax-value high">{{ max_price | dinheiro }}</div>
       </div>
     </div>
     {% endif %}
-
   {% else %}
-    <div class="panel" style="margin-top:12px">
-      <div class="empty-state">
-        <div class="empty-state-icon">🔍</div>
-        <p>Nenhum resultado para "{{ termo }}". Tente um nome diferente.</p>
-      </div>
+    <div class="panel">
+      {{ empty_state('Nenhum resultado para "' ~ termo ~ '"', 'Tente outro termo ou verifique a grafia. Itens do histórico de cupons aparecem aqui.', 'search') }}
     </div>
   {% endif %}
+</div>
+{% else %}
+<div class="panel reveal">
+  {{ empty_state('Busque um produto', 'Digite o nome de um item do histórico (ex.: Leite, Arroz) ou toque em um item frequente acima.', 'search') }}
 </div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+(function() {
+  const c = TheoOS.chartColors();
+  const base = TheoOS.defaultChartOptions();
+  const horiz = {
+    indexAxis: 'y',
+    ...base,
+    plugins: { ...base.plugins, legend: { display: false } },
+    scales: {
+      x: { ...base.scales.x, ticks: { ...base.scales.x.ticks, callback: v => `R$ ${v}` } },
+      y: { ...base.scales.y, grid: { display: false } }
+    }
+  };
+  {% if mercado_ranking %}
+  const gLabels = {{ mercado_ranking | map(attribute='loja') | list | tojson }};
+  const gData = {{ mercado_ranking | map(attribute='media') | list | tojson }};
+  const elG = document.getElementById('marketChartGlobal');
+  if (elG && gLabels.length) {
+    new Chart(elG.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: gLabels,
+        datasets: [{ data: gData, backgroundColor: c.palette.slice(0, gLabels.length), borderRadius: 4 }]
+      },
+      options: horiz
+    });
+  }
+  {% endif %}
+  {% if mercado_produto %}
+  const pLabels = {{ mercado_produto | map(attribute='loja') | list | tojson }};
+  const pData = {{ mercado_produto | map(attribute='preco') | list | tojson }};
+  const elP = document.getElementById('marketChartProduct');
+  if (elP && pLabels.length) {
+    new Chart(elP.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: pLabels,
+        datasets: [{ data: pData, backgroundColor: 'rgba(45,212,191,0.55)', borderColor: c.credit, borderWidth: 1, borderRadius: 4 }]
+      },
+      options: horiz
+    });
+  }
+  {% endif %}
+})();
+
+function fmtBR(n) { return `R$ ${n.toFixed(2).replace('.', ',')}`; }
+
 function atualizarComparacao() {
   const checkboxes = document.querySelectorAll('.compare-checkbox:checked');
   const panel = document.getElementById('comparison-panel');
-  
-  if (checkboxes.length < 2) {
-    panel.style.display = 'none';
+  const sheet = document.getElementById('comparison-sheet');
+  const count = checkboxes.length;
+
+  document.getElementById('compare-count').textContent = `${count} selecionados`;
+  const mobileCount = document.getElementById('compare-count-mobile');
+  if (mobileCount) mobileCount.textContent = `${count}`;
+
+  if (count < 2) {
+    panel?.classList.remove('is-visible');
+    if (sheet) { sheet.hidden = true; }
     return;
   }
-  
-  panel.style.display = 'block';
-  document.getElementById('compare-count').innerText = `${checkboxes.length} selecionados`;
-  
-  let cheapest = null;
-  let mostExpensive = null;
-  
-  checkboxes.forEach(cb => {
-    const preco = parseFloat(cb.getAttribute('data-preco'));
-    const nome = cb.getAttribute('data-nome');
-    const marca = cb.getAttribute('data-marca');
-    const local = cb.getAttribute('data-local');
-    const data = cb.getAttribute('data-data');
-    
-    const itemData = {
-      preco: preco,
-      nomeCompleto: marca ? `${nome} (${marca})` : nome,
-      local: local,
-      data: data
-    };
-    
-    if (cheapest === null || preco < cheapest.preco) {
-      cheapest = itemData;
-    }
-    
-    if (mostExpensive === null || preco > mostExpensive.preco) {
-      mostExpensive = itemData;
-    }
-  });
-  
-  if (cheapest && mostExpensive) {
-    // Update cheapest UI
-    document.getElementById('compare-cheapest-price').innerText = `R$ ${cheapest.preco.toFixed(2).replace('.', ',')}`;
-    document.getElementById('compare-cheapest-name').innerText = cheapest.nomeCompleto;
-    document.getElementById('compare-cheapest-store').innerText = `${cheapest.local} em ${cheapest.data}`;
-    
-    // Update most expensive UI
-    document.getElementById('compare-most-expensive-price').innerText = `R$ ${mostExpensive.preco.toFixed(2).replace('.', ',')}`;
-    document.getElementById('compare-most-expensive-name').innerText = mostExpensive.nomeCompleto;
-    document.getElementById('compare-most-expensive-store').innerText = `${mostExpensive.local} em ${mostExpensive.data}`;
-    
-    // Calculate difference
-    const diff = mostExpensive.preco - cheapest.preco;
-    const pct = cheapest.preco > 0 ? (diff / cheapest.preco * 100) : 0;
-    
-    document.getElementById('compare-diff-value').innerText = `R$ ${diff.toFixed(2).replace('.', ',')}`;
-    document.getElementById('compare-diff-pct').innerText = `+${pct.toFixed(1)}%`;
-    
-    if (diff > 0.001) {
-      document.getElementById('compare-diff-explanation').innerHTML = `O item mais caro é <strong>${pct.toFixed(1)}%</strong> mais caro do que o mais barato. Comprar no local mais barato economiza <strong>R$ ${diff.toFixed(2).replace('.', ',')}</strong> por unidade.`;
-    } else {
-      document.getElementById('compare-diff-explanation').innerHTML = `Os itens selecionados possuem o mesmo valor unitário.`;
-    }
+
+  panel?.classList.add('is-visible');
+  if (sheet) {
+    sheet.hidden = false;
+    sheet.classList.add('is-visible');
   }
+
+  let cheapest = null, mostExpensive = null;
+  checkboxes.forEach(cb => {
+    const preco = parseFloat(cb.dataset.preco);
+    const item = {
+      preco,
+      nomeCompleto: cb.dataset.marca ? `${cb.dataset.nome} (${cb.dataset.marca})` : cb.dataset.nome,
+      local: cb.dataset.local,
+      data: cb.dataset.data
+    };
+    if (!cheapest || preco < cheapest.preco) cheapest = item;
+    if (!mostExpensive || preco > mostExpensive.preco) mostExpensive = item;
+  });
+
+  if (!cheapest || !mostExpensive) return;
+
+  document.getElementById('compare-cheapest-price').textContent = fmtBR(cheapest.preco);
+  document.getElementById('compare-cheapest-name').textContent = cheapest.nomeCompleto;
+  document.getElementById('compare-cheapest-store').textContent = `${cheapest.local} · ${cheapest.data}`;
+
+  document.getElementById('compare-most-expensive-price').textContent = fmtBR(mostExpensive.preco);
+  document.getElementById('compare-most-expensive-name').textContent = mostExpensive.nomeCompleto;
+  document.getElementById('compare-most-expensive-store').textContent = `${mostExpensive.local} · ${mostExpensive.data}`;
+
+  const diff = mostExpensive.preco - cheapest.preco;
+  const pct = cheapest.preco > 0 ? (diff / cheapest.preco * 100) : 0;
+  document.getElementById('compare-diff-value').textContent = fmtBR(diff);
+  document.getElementById('compare-diff-pct').textContent = diff > 0.001 ? `+${pct.toFixed(1)}%` : '0%';
+
+  const expl = document.getElementById('compare-diff-explanation');
+  if (diff > 0.001) {
+    expl.innerHTML = `O mais caro custa <strong>${pct.toFixed(1)}%</strong> a mais. Economia por unidade: <strong>${fmtBR(diff)}</strong>.`;
+  } else {
+    expl.textContent = 'Os itens selecionados têm o mesmo preço unitário.';
+  }
+
+  const summary = document.getElementById('compare-sheet-summary');
+  if (summary) summary.innerHTML = expl.innerHTML;
 }
 
 function limparSelecao() {
-  const checkboxes = document.querySelectorAll('.compare-checkbox');
-  checkboxes.forEach(cb => cb.checked = false);
+  document.querySelectorAll('.compare-checkbox').forEach(cb => cb.checked = false);
   atualizarComparacao();
 }
 
-// Add event listeners to all checkboxes
-document.addEventListener('DOMContentLoaded', () => {
-  const checkboxes = document.querySelectorAll('.compare-checkbox');
-  checkboxes.forEach(cb => {
-    cb.addEventListener('change', atualizarComparacao);
-  });
+document.querySelectorAll('.compare-checkbox').forEach(cb => {
+  cb.addEventListener('change', atualizarComparacao);
 });
 </script>
 {% endblock %}

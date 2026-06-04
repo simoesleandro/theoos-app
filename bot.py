@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from app import app, db, Financas, ItemGasto, ListaCompras, Conta, Orcamento, Categoria, datetime as app_datetime, timedelta as app_timedelta
+from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber, Orcamento, Categoria, datetime as app_datetime, timedelta as app_timedelta
 
 load_dotenv()
 
@@ -33,24 +33,53 @@ CATEGORIAS = "'Hortifruti', 'Supermercado', 'Farmácia', 'Suplemento Alimentar',
 # ── ALERTAS ───────────────────────────────────────────────────────────────────
 
 def alertar_contas_vencendo():
+    from theoos.db_migrate import get_setting
+    from theoos import recurring
+
     with app.app_context():
-        alvo = date.today() + app_timedelta(days=2)
-        contas = Conta.query.filter_by(status='pendente', data_vencimento=alvo).all()
-        if not contas:
+        days_str = get_setting(db, "reminder_days", "2") or "2"
+        enviado = False
+        for part in days_str.split(","):
+            part = part.strip()
+            if not part.isdigit():
+                continue
+            dias = int(part)
+            contas = recurring.contas_due_for_reminder(db, Conta, dias)
+            if not contas:
+                continue
+            alvo = date.today() + app_timedelta(days=dias)
+            total = sum(c.valor for c in contas)
+            when = "hoje" if dias == 0 else f"em {dias} dia(s)"
+            msg = f"⏳ *ThéoOS — Contas {when}* ({alvo.strftime('%d/%m/%Y')})\n\n"
+            for c in contas:
+                msg += f"• {c.nome} ({c.categoria}): R$ {c.valor:.2f}\n"
+            msg += f"\n💰 *Total:* R$ {total:.2f}"
+            try:
+                bot.send_message(TELEGRAM_CHAT_ID, msg, parse_mode="Markdown")
+                enviado = True
+            except Exception as e:
+                print(f"Erro alerta contas: {e}")
+        return enviado
+
+
+def alertar_variacao_precos():
+    from theoos import insights
+
+    with app.app_context():
+        alertas = insights.price_spike_alerts(db, ItemGasto, Financas, min_pct=12.0)
+        if not alertas:
             return
-        total = sum(c.valor for c in contas)
-        if len(contas) == 1:
-            msg = f"⏳ *ALERTA DE VENCIMENTO EM 2 DIAS!*\n\n*Conta a vencer em {alvo.strftime('%d/%m/%Y')}:*\n"
-        else:
-            msg = f"⏳ *ALERTA DE VENCIMENTO EM 2 DIAS!*\n\n*Contas a vencer em {alvo.strftime('%d/%m/%Y')}:*\n"
-            
-        for c in contas:
-            msg += f"• {c.nome} ({c.categoria}): R$ {c.valor:.2f}\n"
-        msg += f"\n💰 *Total do dia:* R$ {total:.2f}"
+        msg = "📈 *ThéoOS — Variação de preços*\n\n"
+        for a in alertas[:5]:
+            sinal = "↑" if a["subiu"] else "↓"
+            msg += (
+                f"• {a['produto']}: {sinal} {abs(a['pct']):.0f}% "
+                f"(R$ {a['preco_anterior']:.2f} → R$ {a['preco_recente']:.2f})\n"
+            )
         try:
             bot.send_message(TELEGRAM_CHAT_ID, msg, parse_mode="Markdown")
         except Exception as e:
-            print(f"Erro alerta contas vencendo: {e}")
+            print(f"Erro alerta preços: {e}")
 
 
 def verificar_orcamentos(categorias):
@@ -79,13 +108,29 @@ def verificar_orcamentos(categorias):
 
 
 def _scheduler_loop():
-    ultimo_alerta = None
+    ultimo_diario = None
+    ultimo_mes = None
     while True:
         agora = datetime.now()
         hoje = agora.date()
-        if agora.hour == 10 and agora.minute == 0 and ultimo_alerta != hoje:
-            ultimo_alerta = hoje
+        if agora.hour == 10 and agora.minute == 0 and ultimo_diario != hoje:
+            ultimo_diario = hoje
             alertar_contas_vencendo()
+            alertar_variacao_precos()
+        if agora.day == 1 and agora.hour == 8 and ultimo_mes != (hoje.year, hoje.month):
+            ultimo_mes = (hoje.year, hoje.month)
+            with app.app_context():
+                from theoos.recurring import run_monthly_generation
+                try:
+                    n = run_monthly_generation(db, Conta, ContaReceber)
+                    if n and TELEGRAM_CHAT_ID:
+                        bot.send_message(
+                            TELEGRAM_CHAT_ID,
+                            f"📅 *ThéoOS* — {n} conta(s) fixa(s) gerada(s) para o mês.",
+                            parse_mode="Markdown",
+                        )
+                except Exception as e:
+                    print(f"Recorrência bot: {e}")
         time.sleep(50)
 
 threading.Thread(target=_scheduler_loop, daemon=True).start()
@@ -101,6 +146,8 @@ def start(message):
         "• /lista — ver itens pendentes\n"
         "• /gasto <valor> <desc> — registra gasto manual\n"
         "• /relatorio — resumo financeiro\n"
+        "• /semana — contas e receitas (7 dias)\n"
+        "• /orcamento — status dos limites do mês\n"
         "Você também pode enviar *foto de cupom* ou *áudio* com itens!")
 
 
@@ -111,7 +158,8 @@ def adicionar_item(message):
         bot.reply_to(message, "Ex: /comprar Frango 2kg")
         return
     with app.app_context():
-        db.session.add(ListaCompras(item=texto))
+        autor = message.from_user.username or message.from_user.first_name or "telegram"
+        db.session.add(ListaCompras(item=texto, criado_por=f"telegram:{autor}"))
         db.session.commit()
     bot.reply_to(message, f"✅ _{texto}_ adicionado à lista!", parse_mode="Markdown")
 
@@ -140,6 +188,52 @@ def registrar_gasto(message):
         bot.reply_to(message, f"💸 Registrado: R$ {valor:.2f} — {desc}")
     except Exception:
         bot.reply_to(message, "❌ Use: /gasto 10.50 Chocolate")
+
+
+@bot.message_handler(commands=['semana'])
+def cmd_semana(message):
+    from theoos import insights
+
+    with app.app_context():
+        semana = insights.week_agenda(db, Conta, ContaReceber)
+    if not semana["contas"] and not semana["receber"]:
+        bot.reply_to(message, "Nada a pagar ou receber nos próximos 7 dias (inclui vencidas).")
+        return
+    msg = "📅 *ThéoOS — Esta semana*\n\n"
+    if semana["contas"]:
+        msg += "*A pagar:*\n"
+        for c in semana["contas"][:8]:
+            msg += f"• {c.nome}: R$ {c.valor:.2f} — {c.data_vencimento.strftime('%d/%m')}\n"
+        if len(semana["contas"]) > 8:
+            msg += f"_+{len(semana['contas']) - 8} conta(s)_\n"
+        msg += f"💸 Total: R$ {semana['total_pagar']:.2f}\n\n"
+    if semana["receber"]:
+        msg += "*A receber:*\n"
+        for r in semana["receber"][:8]:
+            msg += f"• {r.nome}: R$ {r.valor:.2f} — {r.data_esperada.strftime('%d/%m')}\n"
+        if len(semana["receber"]) > 8:
+            msg += f"_+{len(semana['receber']) - 8} receita(s)_\n"
+        msg += f"💰 Total: R$ {semana['total_receber']:.2f}"
+    bot.reply_to(message, msg, parse_mode="Markdown")
+
+
+@bot.message_handler(commands=['orcamento'])
+def cmd_orcamento(message):
+    from theoos import insights
+
+    with app.app_context():
+        status = insights.budget_status(db, Orcamento, ItemGasto, Financas)
+    if not status:
+        bot.reply_to(message, "Nenhum orçamento definido. Configure em /config no painel web.")
+        return
+    msg = "📊 *ThéoOS — Orçamento do mês*\n\n"
+    for o in status[:10]:
+        emoji = "🚨" if o["pct"] >= 100 else ("⚠️" if o["alerta"] else "✅")
+        msg += f"{emoji} *{o['categoria']}*: {o['pct']:.0f}% — R$ {o['gasto']:.2f} / R$ {o['limite']:.2f}\n"
+        if o.get("meta_economia"):
+            economia = max(o["limite"] - o["gasto"], 0)
+            msg += f"   _Meta economia: R$ {economia:.2f} de R$ {o['meta_economia']:.2f}_\n"
+    bot.reply_to(message, msg, parse_mode="Markdown")
 
 
 @bot.message_handler(commands=['relatorio'])

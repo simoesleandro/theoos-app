@@ -1,0 +1,38 @@
+{% macro bill_row_pagar(conta, hoje, extra_class='') %}
+  {% set dias = (conta.data_vencimento - hoje).days %}
+  {% set urgencia = 'urgent' if dias < 0 else ('soon' if dias <= 3 else 'ok') %}
+  <div class="bill-item {{ extra_class }}">
+    <div class="bill-bar {{ urgencia }}"></div>
+    <div class="bill-info">
+      <div class="bill-name">{{ conta.nome }}</div>
+      <div class="bill-due {% if urgencia == 'urgent' %}urgent{% endif %}">
+        Vence {{ conta.data_vencimento.strftime('%d/%m/%Y') }}
+        {% if urgencia == 'urgent' %} (vencido){% elif urgencia == 'soon' %} ({% if dias == 0 %}hoje{% else %}em {{ dias }} dia{% if dias != 1 %}s{% endif %}{% endif %}){% endif %}
+      </div>
+    </div>
+    <div class="bill-val tabular">
+      {% if conta.foto_path %}
+      <button type="button" onclick="previewMedia('{{ url_for('static', filename='uploads/boletos/' + conta.foto_path) }}')" class="btn btn-ghost btn-sm" aria-label="Ver comprovante">Ver</button>
+      {% endif %}
+      {{ conta.valor | dinheiro }}
+    </div>
+    <a href="/pagar_conta/{{ conta.id }}" class="btn btn-outline btn-sm" onclick="return confirm('Confirmar pagamento de {{ conta.nome | e }}?')">Pagar</a>
+  </div>
+{% endmacro %}
+
+{% macro bill_row_receber(conta, hoje, extra_class='') %}
+  {% set dias = (conta.data_esperada - hoje).days %}
+  {% set urgencia = 'urgent' if dias < 0 else ('soon' if dias <= 3 else 'ok') %}
+  <div class="bill-item {{ extra_class }}">
+    <div class="bill-bar {{ urgencia }}"></div>
+    <div class="bill-info">
+      <div class="bill-name">{{ conta.nome }}</div>
+      <div class="bill-due {% if urgencia == 'urgent' %}urgent{% endif %}">
+        Previsão {{ conta.data_esperada.strftime('%d/%m/%Y') }}
+        {% if dias == 0 %} (hoje){% elif dias > 0 and dias <= 3 %} (em {{ dias }} dia{% if dias != 1 %}s{% endif %}){% elif dias < 0 %} (atrasado){% endif %}
+      </div>
+    </div>
+    <div class="bill-val tabular" style="color:var(--success)">{{ conta.valor | dinheiro }}</div>
+    <a href="/receber/dar_baixa/{{ conta.id }}" class="btn btn-outline btn-sm" onclick="return confirm('Confirmar recebimento de {{ conta.nome | e }}?')">Receber</a>
+  </div>
+{% endmacro %}

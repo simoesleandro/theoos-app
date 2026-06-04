@@ -1,152 +1,12 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
+{% from 'macros/ui.html' import flash_messages, chip, empty_state %}
 {% block title %}Lista de Compras{% endblock %}
 
-{% block styles %}
-.add-form-grid {
-  display: grid;
-  grid-template-columns: 2fr 1.2fr 80px 110px 1.3fr auto;
-  gap: 10px;
-  align-items: end;
-}
-.list-row {
-  display: flex; align-items: center; gap: 14px;
-  padding: 13px 22px; border-bottom: 1px solid var(--faint);
-  transition: background .15s;
-}
-.list-row:last-child { border-bottom: none; }
-.list-row:hover { background: var(--bg-hover); }
-.list-row.done { opacity: .5; }
-.list-row-qty {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 20px; font-weight: 300; color: var(--cream);
-  min-width: 56px; letter-spacing: -.5px; text-align: right;
-}
-.list-row-unit { font-size: 10px; color: var(--muted); margin-top: 1px; text-align: right; }
-.list-row-name { flex: 1; font-size: 14px; }
-.list-row-name.done { text-decoration: line-through; }
-.list-row-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
-.btn-icon {
-  width: 30px; height: 30px; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--faint); background: transparent;
-  color: var(--muted); cursor: pointer; transition: all .15s;
-  text-decoration: none; font-size: 13px;
-}
-.btn-icon:hover { border-color: var(--terra); color: var(--terra); background: var(--terra-dim); }
-.flash-msg {
-  padding: 11px 16px; border-radius: var(--radius-sm);
-  font-size: 13px; margin-bottom: 4px;
-  display: flex; align-items: center; gap: 8px;
-}
-.flash-success { background: var(--sage-dim); border: 1px solid rgba(111,168,130,.25); color: var(--sage); }
-.flash-warning { background: rgba(212,146,42,.1); border: 1px solid rgba(212,146,42,.2); color: var(--gold); }
-.flash-danger  { background: var(--terra-dim); border: 1px solid rgba(197,96,74,.2); color: var(--terra); }
-.section-label {
-  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-  color: var(--muted); padding: 10px 22px 6px;
-  border-bottom: 1px solid var(--faint);
-}
-.modal-overlay {
-  display: none; position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
-  align-items: center; justify-content: center;
-}
-.modal-overlay.open { display: flex; }
-.modal {
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 28px; width: 360px; max-width: 92vw;
-  animation: reveal .2s ease;
-}
-.modal-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 300; margin-bottom: 4px; }
-.modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
-.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.modal-actions { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
-
-@media (max-width: 768px) {
-  .add-form-grid { grid-template-columns: 1fr 1fr; }
-  .add-form-grid .btn-primary { grid-column: span 2; justify-content: center; }
-  .page-header { flex-direction: column; gap: 12px; }
-}
-@media (max-width: 480px) {
-  .add-form-grid { grid-template-columns: 1fr; }
-  .add-form-grid .btn-primary { grid-column: span 1; }
-}
-@media print {
-  body, html {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-  .sidebar, 
-  .page-actions, 
-  .panel:nth-of-type(1), 
-  .list-row-actions, 
-  .flash-msg, 
-  .modal-overlay,
-  body::before {
-    display: none !important;
-  }
-  .shell {
-    display: block !important;
-  }
-  .main {
-    margin-left: 0 !important;
-    padding: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-  }
-  .panel {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-  .panel-header {
-    border-bottom: 2px solid #000000 !important;
-    padding-bottom: 8px !important;
-    margin-bottom: 15px !important;
-  }
-  .panel-title {
-    color: #000000 !important;
-    font-size: 24px !important;
-    font-weight: bold !important;
-  }
-  .list-row {
-    border-bottom: 1px solid #dddddd !important;
-    padding: 10px 0 !important;
-    background: transparent !important;
-  }
-  .list-row-qty {
-    color: #000000 !important;
-    font-weight: bold !important;
-    font-size: 16px !important;
-  }
-  .list-row-unit {
-    color: #555555 !important;
-    font-size: 12px !important;
-  }
-  .list-row-name {
-    color: #000000 !important;
-    font-size: 15px !important;
-  }
-  .chip {
-    border: 1px solid #777777 !important;
-    color: #333333 !important;
-    background: transparent !important;
-  }
-}
-{% endblock %}
+{% block styles %}{% endblock %}
 
 {% block conteudo %}
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% for cat, msg in messages %}
-  <div class="flash-msg flash-{{ cat }}">
-    {% if cat == 'success' %}✓{% elif cat == 'warning' %}⚠{% else %}✕{% endif %}
-    {{ msg }}
-  </div>
-  {% endfor %}
-{% endwith %}
+{{ flash_messages() }}
 
 <div class="page-header reveal">
   <div>
@@ -156,29 +16,28 @@
       {% if itens_comprados %} · {{ itens_comprados | length }} concluído{% if itens_comprados | length != 1 %}s{% endif %}{% endif %}
     </p>
   </div>
-  <div class="page-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-    {% if itens_comprados %}
-    <form action="/lista/limpar" method="POST" style="display:inline; margin: 0;">
-      <button type="submit" class="btn btn-ghost" onclick="return confirm('Remover todos os itens concluídos?')">
-        🗑 Limpar concluídos
-      </button>
-    </form>
-    {% endif %}
-    <a href="/lista/enviar_telegram" class="btn btn-ghost" style="color: var(--gold); border-color: rgba(229,161,56,.3);" onclick="return confirm('Enviar esta lista de compras para o grupo do Telegram?')">
-      ✈ Enviar via Robô
-    </a>
-    <a href="/lista/baixar_txt" class="btn btn-ghost">
-      📥 Baixar (.txt)
-    </a>
-    <button type="button" class="btn btn-ghost" onclick="window.print()">
-      🖨 PDF / Imprimir
-    </button>
-    <a href="/" class="btn btn-ghost">← Voltar</a>
+  <div class="page-actions">
+    <a href="#adicionar-item" class="btn btn-primary">+ Adicionar item</a>
+    <details class="actions-overflow lista-toolbar-overflow">
+      <summary class="btn btn-ghost">Mais ações</summary>
+      <div class="actions-overflow-menu">
+        {% if itens_comprados %}
+        <form action="/lista/limpar" method="POST">
+          <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Remover todos os itens concluídos?')">Limpar concluídos</button>
+        </form>
+        {% endif %}
+        <a href="/lista/enviar_telegram" class="btn btn-ghost btn-sm" onclick="return confirm('Enviar lista para o Telegram?')">Enviar Telegram</a>
+        <a href="/lista/baixar_txt" class="btn btn-ghost btn-sm">Baixar TXT</a>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">Imprimir</button>
+        <a href="/upload_nota" class="btn btn-ghost btn-sm">Processar cupom</a>
+      </div>
+    </details>
+    <a href="/" class="btn btn-ghost">Voltar</a>
   </div>
 </div>
 
 <!-- Formulário de adição -->
-<div class="panel reveal">
+<div class="panel reveal" id="adicionar-item">
   <div class="panel-header">
     <div class="panel-title">Adicionar Item</div>
     <a href="/upload_nota" class="panel-action">📷 Processar cupom →</a>
@@ -236,27 +95,67 @@
 
 <!-- Itens Pendentes -->
 <div class="panel reveal">
-  <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-    <div style="display: flex; align-items: baseline; gap: 12px;">
+  <div class="panel-header panel-toolbar">
+    <div>
       <div class="panel-title">Pendentes</div>
-      <span style="font-size:12px;color:var(--muted)">{{ itens_pendentes | length }} item{% if itens_pendentes | length != 1 %}s{% endif %}</span>
+      <span class="panel-toolbar-meta">{{ itens_pendentes | length }} item{% if itens_pendentes | length != 1 %}s{% endif %}</span>
     </div>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      {% if total_estimado and total_estimado > 0 %}
-      <div style="font-size: 13px; font-weight: 500; color: var(--cream); display: flex; align-items: center; gap: 6px; margin-right: 8px;">
-        <span>Total Estimado:</span>
-        <strong class="font-roboto" style="color: var(--gold); font-size: 17px; letter-spacing: -0.3px;">{{ total_estimado|dinheiro }}</strong>
-      </div>
-      {% endif %}
+    <div class="panel-toolbar-actions">
       {% if itens_pendentes %}
-      <button type="button" id="btn-salvar-lista" class="btn btn-primary btn-sm" onclick="salvarTudoLista()">💾 Salvar Tudo</button>
+      <button type="button" id="btn-salvar-lista" class="btn btn-primary btn-sm" onclick="salvarTudoLista()">Salvar tudo</button>
       {% endif %}
     </div>
   </div>
 
+  {% if total_estimado and total_estimado > 0 %}
+  <div class="estimado-banner">
+    <span>Total estimado do carrinho</span>
+    <strong>{{ total_estimado | dinheiro }}</strong>
+  </div>
+  {% endif %}
+
+  {% if cesta_lojas and itens_pendentes %}
+  <div class="cesta-lojas panel-body" style="border-bottom:1px solid var(--border)">
+    <div class="kpi-label" style="margin-bottom:var(--space-2)">Estimativa por mercado (histórico)</div>
+    {% for loja in cesta_lojas[:4] %}
+    {% if loja.total > 0 %}
+    <div class="schedule-item">
+      <span class="schedule-dot" aria-hidden="true"></span>
+      <div class="schedule-body">
+        <div class="schedule-name">{{ loja.loja }}</div>
+        <div class="schedule-meta">{{ loja.itens }} itens com preço no histórico</div>
+      </div>
+      <span class="schedule-amount" style="color:{% if loop.first %}var(--success){% else %}var(--text-primary){% endif %}">{{ loja.total | dinheiro }}</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if itens_pendentes %}
-    <div style="overflow-x: auto;">
-      <table class="data-table" style="min-width: 900px;">
+    <div class="lista-cards">
+      {% for item in itens_pendentes %}
+      <article class="lista-card">
+        <div class="lista-card-header">
+          <div>
+            <div class="lista-card-name">{{ item.item }}</div>
+            <div class="lista-card-meta">{{ item.quantidade | numero }} {{ item.unidade }}{% if item.marca %} · {{ item.marca }}{% endif %}</div>
+            {{ chip(item.categoria) }}
+          </div>
+          <div class="lista-card-price">
+            {% if item.ultimo_preco %}{{ (item.ultimo_preco * item.quantidade) | dinheiro }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="lista-card-actions">
+          <button type="button" class="btn btn-success btn-sm" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')">Dar baixa</button>
+          <a href="/lista/delete/{{ item.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <div class="lista-table-wrap table-scroll">
+      <table class="data-table table-wide">
         <thead>
           <tr>
             <th style="min-width: 180px;">Item / Produto</th>
@@ -273,7 +172,7 @@
           {% for item in itens_pendentes %}
           <tr id="list-row-{{ item.id }}">
             <td>
-              <input type="text" class="form-input list-item-item" value="{{ item.item }}" required style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;">
+              <input type="text" class="form-input table-input list-item-item" value="{{ item.item }}" required>
             </td>
             <td>
               <input type="text" class="form-input list-item-marca" value="{{ item.marca or '' }}" placeholder="Marca (Ex: Sadia)" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;">
@@ -314,12 +213,8 @@
             </td>
             <td style="text-align: right; vertical-align: middle;">
               <div style="display: flex; justify-content: flex-end; gap: 6px;">
-                <button onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')"
-                        class="btn btn-sage btn-sm" style="height: 30px;">✔ Baixa</button>
-                <a href="/lista/delete/{{ item.id }}" class="btn-icon"
-                   onclick="return confirm('Remover {{ item.item | e }} da lista?')" title="Remover">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                </a>
+                <button type="button" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')" class="btn btn-success btn-sm">Baixa</button>
+                <a href="/lista/delete/{{ item.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</a>
               </div>
             </td>
           </tr>
@@ -333,10 +228,7 @@
       </button>
     </div>
   {% else %}
-    <div class="empty-state" style="padding: 28px;">
-      <div class="empty-state-icon">🎉</div>
-      <p>Lista vazia — tudo comprado!</p>
-    </div>
+    {{ empty_state('Nada pendente', 'Tudo comprado! Adicione novos itens quando for às compras.', 'check', '#adicionar-item', '+ Adicionar item') }}
   {% endif %}
 </div>
 
@@ -380,8 +272,7 @@
                 {% else %}{{ prod.unidade }}{% endif %}
               </td>
               <td>
-                {% set cat = prod.categoria | lower | replace(' ','') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
-                <span class="chip chip-{{ cat }}">{{ prod.categoria }}</span>
+                {{ chip(prod.categoria) }}
               </td>
               <td class="font-roboto" style="text-align: right; color: var(--cream); font-size: 13.5px; vertical-align: middle;">
                 {% if prod.ultimo_preco %}
@@ -401,9 +292,7 @@
         </table>
       </div>
     {% else %}
-      <div class="empty-state" style="padding: 24px;">
-        <p>Nenhum produto no histórico ou cadastrado ainda.</p>
-      </div>
+      {{ empty_state('Histórico vazio', 'Processe um cupom ou registre compras para popular o histórico de preços.', 'cart', '/upload_nota', 'Processar cupom') }}
     {% endif %}
   </div>
 </div>
@@ -446,8 +335,7 @@
               {% else %}{{ item.unidade }}{% endif %}
             </td>
             <td>
-              {% set cat = item.categoria | lower | replace(' ','') | replace('á','a') | replace('â','a') | replace('ê','e') | replace('ú','u') %}
-              <span class="chip chip-{{ cat }}" style="opacity: 0.5;">{{ item.categoria }}</span>
+              <span class="chip {{ chip_class(item.categoria) }}" style="opacity:0.5">{{ item.categoria }}</span>
             </td>
             <td style="text-align: right;">
               <a href="/lista/delete/{{ item.id }}" class="btn-icon"
@@ -465,8 +353,8 @@
 {% endif %}
 
 <!-- Modal de Baixa -->
-<div class="modal-overlay" id="modal-overlay" onclick="fecharModal(event)">
-  <div class="modal">
+<div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-titulo" onclick="fecharModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="modal-titulo">Dar Baixa</div>
     <div class="modal-sub" id="modal-sub"></div>
     <div class="modal-row">

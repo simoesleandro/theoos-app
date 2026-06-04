@@ -23,6 +23,17 @@ O sistema roda localmente em rede doméstica, com um bot Telegram como interface
 - **Detetive de Preços** — rastreie o histórico de preços de qualquer produto com comparador de menor e maior preço entre compras
 - **Relatórios financeiros** — visão consolidada de tudo que foi registrado com gráficos e filtros por período
 - **Deduplicação de notas** — sistema identifica cupons já registrados por hash MD5, evitando lançamentos duplicados
+- **Painel “Esta semana”** — contas a pagar/receber nos próximos 7 dias, orçamento e alertas de preço no dashboard
+- **Estimativa por mercado** — na lista de compras, compara total estimado por loja (histórico)
+- **Configurações** — PIN na web, backup/restore ZIP, lembretes Telegram configuráveis, contas fixas mensais, tema claro
+- **Conciliação CSV** — importar extrato do banco e cruzar com lançamentos
+- **PWA** — adicionar o painel à tela inicial do celular (`static/manifest.json`)
+- **Notificações web** — lembretes de vencimento no navegador (Configurações)
+- **PDF mensal** — exportar relatório do mês em PDF
+- **Comparador por mercado** — gráfico no Detetive de Preços
+- **Bot** — `/semana` e `/orcamento` no Telegram
+
+Documentação extra: [docs/API.md](docs/API.md), [docs/DEPLOY.md](docs/DEPLOY.md)
 
 ---
 
@@ -36,7 +47,7 @@ O sistema roda localmente em rede doméstica, com um bot Telegram como interface
 | IA | Google Gemini 2.5 Flash (Vision + NLP) |
 | Bot | pyTelegramBotAPI |
 | Frontend | HTML + CSS + JavaScript (vanilla) |
-| Serviço Windows | WinSW (theoos-bot.xml / theoos-web.xml) |
+| Serviço Windows | WinSW — `theoos-web.xml` / `theoos-bot.xml` (início automático; ver [docs/DEPLOY.md](docs/DEPLOY.md)) |
 
 ---
 

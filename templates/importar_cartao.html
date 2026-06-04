@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Importar extrato{% endblock %}
+
+{% block conteudo %}
+<div class="page-header reveal">
+  <div>
+    <h1 class="page-heading">Conciliar <em>extrato</em></h1>
+    <p class="page-sub">CSV com colunas: data, descrição, valor (separador vírgula ou ponto-e-vírgula)</p>
+  </div>
+  <a href="/config" class="btn btn-ghost">Configurações</a>
+</div>
+
+<div class="panel reveal">
+  <div class="panel-header">
+    <div class="panel-title">Enviar arquivo</div>
+  </div>
+  <div class="panel-body">
+    <form method="POST" enctype="multipart/form-data">
+      <label class="upload-area" for="csv-file">
+        <div class="upload-title">Arraste ou escolha o CSV do banco</div>
+        <div class="upload-sub">Colunas: data, descrição, valor</div>
+        <div class="upload-filename" id="csv-file-name">Nenhum arquivo selecionado</div>
+        <input type="file" id="csv-file" name="csv" accept=".csv,.txt" required>
+      </label>
+      <button type="submit" class="btn btn-primary" style="margin-top:var(--space-4)">Importar e conciliar</button>
+    </form>
+  </div>
+</div>
+
+{% if lancamentos is defined %}
+<div class="panel reveal">
+  <div class="panel-header">
+    <div class="panel-title">Resultado</div>
+    <span class="panel-sub">{{ importados }} novo{% if importados != 1 %}s{% endif %} lançamento{% if importados != 1 %}s{% endif %}</span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for lan in lancamentos[:30] %}
+        <tr>
+          <td>{{ lan.data.strftime('%d/%m/%Y') }}</td>
+          <td>{{ lan.descricao }}</td>
+          <td class="tabular">{{ lan.valor | dinheiro }}</td>
+          <td>{% if lan.conciliado %}<span class="chip chip-success">Já no sistema</span>{% else %}<span class="chip chip-warning">Novo</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const input = document.getElementById('csv-file');
+  const label = document.getElementById('csv-file-name');
+  if (!input || !label) return;
+  input.addEventListener('change', () => {
+    label.textContent = input.files[0] ? input.files[0].name : 'Nenhum arquivo selecionado';
+  });
+})();
+</script>
+{% endblock %}

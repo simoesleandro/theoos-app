@@ -25,6 +25,32 @@ GEMINI_MODEL = 'gemini-2.5-flash'
 
 CATEGORIAS_LISTA = ['Hortifruti', 'Supermercado', 'Farmácia', 'Suplemento Alimentar', 'Outros']
 
+CATEGORY_CHIP = {
+    'Hortifruti': 'chip-success',
+    'Supermercado': 'chip-brand',
+    'Farmácia': 'chip-danger',
+    'Suplemento Alimentar': 'chip-info',
+    'Luz': 'chip-warning',
+    'Internet': 'chip-info',
+    'Condomínio': 'chip-warning',
+    'Cartão de Crédito': 'chip-danger',
+    'Atividades Théo': 'chip-brand',
+    'Veterinário': 'chip-info',
+    'Combustível': 'chip-warning',
+    'Vacinas': 'chip-info',
+    'Contas Fixas': 'chip-neutral',
+    'Outros': 'chip-neutral',
+}
+
+
+def chip_class(categoria):
+    if not categoria:
+        return 'chip-neutral'
+    return CATEGORY_CHIP.get(categoria.strip(), 'chip-neutral')
+
+
+app.jinja_env.globals['chip_class'] = chip_class
+
 UPLOAD_FOLDER = 'static/uploads/boletos'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -44,6 +70,7 @@ class ListaCompras(db.Model):
     categoria = db.Column(db.String(50), default='Outros')
     marca = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), default='pendente')
+    criado_por = db.Column(db.String(50), nullable=True)
 
 
 class Financas(db.Model):
@@ -54,6 +81,7 @@ class Financas(db.Model):
     foto_hash = db.Column(db.String(32), nullable=True)
     foto_path = db.Column(db.String(200), nullable=True)
     tipo = db.Column(db.String(10), nullable=False, server_default='debito', default='debito') # 'credito' ou 'debito'
+    criado_por = db.Column(db.String(50), nullable=True)
     itens = db.relationship('ItemGasto', backref='nota', lazy=True)
 
 
@@ -68,7 +96,7 @@ class ItemGasto(db.Model):
     valor_total = db.Column(db.Float, nullable=False)
     categoria = db.Column(db.String(50), default='Outros')
     unidade = db.Column(db.String(20), default='un')
-
+    mercado = db.Column(db.String(80), nullable=True)
 
 
 class Conta(db.Model):
@@ -79,6 +107,7 @@ class Conta(db.Model):
     status = db.Column(db.String(20), default='pendente')
     foto_path = db.Column(db.String(200), nullable=True)
     categoria = db.Column(db.String(50), nullable=False, default='Outros')
+    criado_por = db.Column(db.String(50), nullable=True)
 
 
 class ContaReceber(db.Model):
@@ -89,12 +118,14 @@ class ContaReceber(db.Model):
     status = db.Column(db.String(20), default='pendente') # 'pendente' ou 'recebido'
     foto_path = db.Column(db.String(200), nullable=True)
     categoria = db.Column(db.String(50), nullable=False, default='Outros')
+    criado_por = db.Column(db.String(50), nullable=True)
 
 
 class Orcamento(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     categoria = db.Column(db.String(50), unique=True, nullable=False)
     limite_mensal = db.Column(db.Float, nullable=False)
+    meta_economia = db.Column(db.Float, nullable=True)
 
 
 class Categoria(db.Model):
@@ -118,7 +149,14 @@ with app.app_context():
             db.session.commit()
     except Exception as e:
         print(f"Erro ao pre-popular categorias: {e}")
-    # Migrations para colunas novas em tabelas existentes
+    from theoos.db_migrate import run_migrations
+    from theoos.recurring import run_monthly_generation
+    run_migrations(db)
+    try:
+        run_monthly_generation(db, Conta, ContaReceber)
+    except Exception as e:
+        print(f"Recorrência mensal: {e}")
+    # Migrations legadas para colunas antigas
     with db.engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE financas ADD COLUMN tipo TEXT DEFAULT 'debito'"))
@@ -156,6 +194,28 @@ with app.app_context():
         except Exception:
             pass
 
+from flask import session as flask_session
+from theoos import auth as theoos_auth
+from theoos import routes as theoos_routes
+
+theoos_auth.init_app(app, db)
+theoos_routes.register(
+    app,
+    db,
+    {
+        "ListaCompras": ListaCompras,
+        "Financas": Financas,
+        "ItemGasto": ItemGasto,
+        "Conta": Conta,
+        "ContaReceber": ContaReceber,
+        "Orcamento": Orcamento,
+    },
+)
+
+
+def _actor():
+    return flask_session.get("theoos_actor") or "web"
+
 
 @app.template_filter('dinheiro')
 def dinheiro_filter(val):
@@ -189,9 +249,17 @@ def inject_global_data():
             categorias_nomes.append('Outros')
     except Exception:
         categorias_nomes = ['Hortifruti', 'Supermercado', 'Farmácia', 'Suplemento Alimentar', 'Outros']
+    try:
+        from theoos.db_migrate import get_setting
+        ui_theme = get_setting(db, 'theme', 'dark')
+    except Exception:
+        ui_theme = 'dark'
     return dict(
         nav_pendentes=nav_pendentes,
-        categorias_sistema=categorias_nomes
+        categorias_sistema=categorias_nomes,
+        chip_class=chip_class,
+        CATEGORY_CHIP=CATEGORY_CHIP,
+        ui_theme=ui_theme,
     )
 
 
@@ -269,10 +337,6 @@ def index():
     lista_preview = ListaCompras.query.filter_by(status='pendente').limit(5).all()
 
     contas_pendentes_count = Conta.query.filter_by(status='pendente').count()
-    contas_proximas = Conta.query.filter_by(status='pendente').order_by(Conta.data_vencimento).limit(3).all()
-
-    # Recebíveis próximos
-    recebiveis_proximos = ContaReceber.query.filter_by(status='pendente').order_by(ContaReceber.data_esperada).limit(3).all()
 
     num_transacoes = Financas.query.filter(Financas.data >= primeiro_dia_dt).count()
     notas = Financas.query.order_by(Financas.data.desc()).limit(5).all()
@@ -307,6 +371,12 @@ def index():
     ).all():
         gastos_por_cat[item.categoria or 'Outros'] += item.valor_total
 
+    from theoos import insights
+    semana = insights.week_agenda(db, Conta, ContaReceber, hoje, days=7)
+    orcamento_status = insights.budget_status(db, Orcamento, ItemGasto, Financas)
+    alertas_preco = insights.price_spike_alerts(db, ItemGasto, Financas)[:5]
+    habitos_sumidos = insights.missing_habit_products(db, ItemGasto, Financas)[:4]
+
     return render_template('index.html',
         total=total_debitos_mes, # compatibility
         total_debitos_mes=total_debitos_mes,
@@ -318,8 +388,6 @@ def index():
         pendentes=pendentes,
         lista_preview=lista_preview,
         contas_pendentes=contas_pendentes_count,
-        contas_proximas=contas_proximas,
-        recebiveis_proximos=recebiveis_proximos,
         num_transacoes=num_transacoes,
         notas=notas,
         datas=datas_grafico,
@@ -329,7 +397,11 @@ def index():
         valores_cat=list(gastos_por_cat.values()),
         hoje=hoje,
         today_date=hoje,
-        today_str=hoje.strftime('%Y-%m-%d')
+        today_str=hoje.strftime('%Y-%m-%d'),
+        semana=semana,
+        orcamento_status=orcamento_status,
+        alertas_preco=alertas_preco,
+        habitos_sumidos=habitos_sumidos,
     )
 
 
@@ -427,11 +499,15 @@ def lista_compras():
                 'ultimo_preco': None
             })
 
-    return render_template('lista.html', 
-                           itens_pendentes=itens_pendentes, 
+    from theoos import insights
+    cesta_lojas = insights.basket_estimates_by_store(db, ListaCompras, ItemGasto, Financas)
+
+    return render_template('lista.html',
+                           itens_pendentes=itens_pendentes,
                            itens_comprados=itens_comprados,
                            total_estimado=total_estimado,
-                           produtos_historico=produtos_historico)
+                           produtos_historico=produtos_historico,
+                           cesta_lojas=cesta_lojas)
 
 
 @app.route('/comprado/<int:id>')
@@ -447,11 +523,14 @@ def marcar_comprado(id):
             item.quantidade -= qtd_comprada
 
         # Cria o registro em Financas e faz o flush para obter o ID gerado
-        novo_gasto = Financas(valor=valor_pago, descricao=f"Compra: {item.item}")
+        novo_gasto = Financas(
+            valor=valor_pago,
+            descricao=f"Compra: {item.item}",
+            criado_por=_actor(),
+        )
         db.session.add(novo_gasto)
         db.session.flush()
 
-        # Cria o correspondente ItemGasto para alimentar o histórico de preços/categorias
         valor_unitario = valor_pago / qtd_comprada if qtd_comprada > 0 else 0.0
         db.session.add(ItemGasto(
             financa_id=novo_gasto.id,
@@ -461,7 +540,8 @@ def marcar_comprado(id):
             valor_total=valor_pago,
             categoria=item.categoria,
             marca=item.marca,
-            unidade=item.unidade
+            unidade=item.unidade,
+            mercado=request.args.get('mercado', '').strip() or None,
         ))
         db.session.commit()
 
@@ -713,6 +793,8 @@ def deletar_transacao(id):
         
         # Deleta os itens associados
         ItemGasto.query.filter_by(financa_id=id).delete()
+        from theoos import audit
+        audit.log_action(db, 'delete', 'Financas', id, nota.descricao, _actor())
         db.session.delete(nota)
         db.session.commit()
         flash('Transação excluída com sucesso!', 'success')
@@ -762,11 +844,26 @@ def pesquisa():
         if not exists:
             itens_populares.append(default_item)
 
-    return render_template('pesquisa.html', termo=termo, resultados=resultados, itens_populares=itens_populares)
+    from theoos import insights
+
+    mercado_ranking = (
+        insights.market_ranking_global(db, ItemGasto, Financas) if not termo else []
+    )
+    mercado_produto = (
+        insights.market_prices_for_term(db, ItemGasto, Financas, termo) if termo else []
+    )
+    return render_template(
+        "pesquisa.html",
+        termo=termo,
+        resultados=resultados,
+        itens_populares=itens_populares,
+        mercado_ranking=mercado_ranking,
+        mercado_produto=mercado_produto,
+    )
 
 
 @app.route('/exportar')
-def exportar_csv():
+def exportar():
     itens = ItemGasto.query.all()
     si = StringIO()
     cw = csv.writer(si, delimiter=';')
@@ -1099,12 +1196,16 @@ def orcamento():
     if request.method == 'POST':
         categoria = request.form['categoria']
         limite = float(request.form['limite'].replace(',', '.'))
+        meta_raw = request.form.get('meta_economia', '').strip()
+        meta = float(meta_raw.replace(',', '.')) if meta_raw else None
         existente = Orcamento.query.filter_by(categoria=categoria).first()
         if existente:
             existente.limite_mensal = limite
+            existente.meta_economia = meta
         else:
-            db.session.add(Orcamento(categoria=categoria, limite_mensal=limite))
+            db.session.add(Orcamento(categoria=categoria, limite_mensal=limite, meta_economia=meta))
         db.session.commit()
+        flash('Orçamento atualizado.', 'success')
         return redirect(url_for('orcamento'))
 
     hoje = date.today()
@@ -1114,8 +1215,23 @@ def orcamento():
     for item in ItemGasto.query.join(Financas).filter(Financas.data >= primeiro_dia).all():
         gastos_mes[item.categoria or 'Outros'] += item.valor_total
 
+    from theoos import insights
+
     orcamentos = Orcamento.query.all()
-    return render_template('orcamento.html', orcamentos=orcamentos, gastos_mes=dict(gastos_mes))
+    savings = {}
+    for o in orcamentos:
+        gasto = gastos_mes.get(o.categoria, 0)
+        prog = insights.budget_savings_progress(
+            gasto, o.limite_mensal, getattr(o, "meta_economia", None)
+        )
+        if prog:
+            savings[o.categoria] = prog
+    return render_template(
+        "orcamento.html",
+        orcamentos=orcamentos,
+        gastos_mes=dict(gastos_mes),
+        savings=savings,
+    )
 
 
 # ── LISTA DE COMPRAS — ADICIONAR / DELETAR / LIMPAR ──────────────────────────
@@ -1134,7 +1250,8 @@ def lista_add():
     marca     = request.form.get('marca', '').strip() or None
     db.session.add(ListaCompras(item=item, quantidade=quantidade,
                                 unidade=unidade, categoria=categoria,
-                                marca=marca, status='pendente'))
+                                marca=marca, status='pendente',
+                                criado_por=_actor()))
     db.session.commit()
     flash(f'"{item}" adicionado à lista!', 'success')
     return redirect(url_for('lista_compras'))
@@ -1246,10 +1363,10 @@ def lista_enviar_telegram():
         flash('Configurações do Telegram ausentes no servidor.', 'danger')
         return redirect(url_for('lista_compras'))
         
-    # Formata a lista
-    msg = f"🛒 *Lista de Compras Família*\n"
-    msg += f"📅 Gerada em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}\n\n"
-    msg += f"*Itens Pendentes ({len(itens_pendentes)}):*\n"
+    # Formata a lista (linguagem alinhada ao ThéoOS)
+    msg = "*ThéoOS — Lista de compras*\n"
+    msg += f"_Atualizado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}_\n\n"
+    msg += f"*Pendentes ({len(itens_pendentes)}):*\n"
     
     por_categoria = defaultdict(list)
     for it in itens_pendentes:
@@ -1634,9 +1751,16 @@ Retorne SOMENTE JSON puro:
             except ValueError:
                 pass
 
-    novo_gasto = Financas(valor=total, descricao=f"IA: {mercado}", foto_hash=foto_hash, foto_path=foto_path, data=data_gasto)
+    novo_gasto = Financas(
+        valor=total,
+        descricao=f"IA: {mercado}",
+        foto_hash=foto_hash,
+        foto_path=foto_path,
+        data=data_gasto,
+        criado_por=_actor(),
+    )
     db.session.add(novo_gasto)
-    db.session.flush()  # gera o ID antes dos filhos
+    db.session.flush()
 
     for item in itens_lista:
         cat = item.get('categoria', 'Outros')
@@ -1649,7 +1773,8 @@ Retorne SOMENTE JSON puro:
             valor_unitario=float(item.get('valor_unitario', 0.0)),
             valor_total=float(item.get('valor_total', 0.0)),
             categoria=cat,
-            unidade=item.get('unidade', 'un')
+            unidade=item.get('unidade', 'un'),
+            mercado=mercado[:80] if mercado else None,
         ))
 
 
@@ -1872,4 +1997,12 @@ def deletar_item_cupom(item_id):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.getenv('PORT', '5000'))
+    as_service = os.getenv('THEOOS_SERVICE', '').strip() in ('1', 'true', 'yes')
+    debug = os.getenv('FLASK_DEBUG', '').lower() in ('1', 'true') and not as_service
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=debug,
+        use_reloader=debug,
+    )

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrar — ThéoOS</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/theoos.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card panel">
+    <div class="logo-mark" style="text-align:center;margin-bottom:var(--space-4)">Théo<em>OS</em></div>
+    <h1 class="page-heading" style="font-size:var(--text-xl);text-align:center">Acesso ao painel</h1>
+    <p class="page-sub" style="text-align:center;margin-bottom:var(--space-5)">
+      {% if pin_enabled %}Digite o PIN configurado na rede local.{% else %}Configure um PIN em Configurações após entrar.{% endif %}
+    </p>
+    <form method="POST" action="{{ url_for('login', next=request.args.get('next')) }}">
+      <div class="form-group">
+        <label class="form-label" for="nome">Seu nome (opcional)</label>
+        <input type="text" id="nome" name="nome" class="form-input" placeholder="Ex: Leandro" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pin">PIN</label>
+        <input type="password" id="pin" name="pin" class="form-input" required autocomplete="current-password" inputmode="numeric">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;min-height:44px">Entrar</button>
+    </form>
+  </main>
+</body>
+</html>
