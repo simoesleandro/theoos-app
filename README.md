@@ -33,7 +33,8 @@ O sistema roda localmente em rede doméstica, com um bot Telegram como interface
 - **Comparador por mercado** — gráfico no Detetive de Preços
 - **Bot** — `/semana` e `/orcamento` no Telegram
 
-Documentação extra: [docs/API.md](docs/API.md), [docs/DEPLOY.md](docs/DEPLOY.md)
+Documentação extra: [docs/API.md](docs/API.md), [docs/DEPLOY.md](docs/DEPLOY.md), [docs/PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md)  
+Contexto para agentes/IA: [AGENTS.md](AGENTS.md)
 
 ---
 
@@ -114,24 +115,23 @@ Os arquivos `theoos-web.xml` e `theoos-bot.xml` permitem instalar o dashboard e 
 ## 📂 Estrutura do Projeto
 
 ```
-theoos/
-├── app.py               # Flask app — rotas, models e lógica principal
-├── bot.py               # Telegram bot com Gemini NLP e Vision
-├── requirements.txt
-├── theoos-web.xml       # Config WinSW — serviço do dashboard
-├── theoos-bot.xml       # Config WinSW — serviço do bot
-├── .env.example
-├── .gitignore
-├── templates/           # Templates Jinja2
-│   ├── base.html
-│   ├── index.html
-│   ├── lista.html
-│   ├── contas.html
-│   ├── orcamento.html
-│   ├── pesquisa.html
-│   ├── relatorios.html
-│   └── upload_nota.html
-└── static/              # CSS, JS e uploads
+appfamiliar/
+├── app.py                 # Flask — models e rotas principais
+├── bot.py                 # Telegram + Gemini + agendadores
+├── theoos/                # Auth, backup, insights, PDF, migrações, APIs
+├── templates/
+│   ├── macros/            # ui.html, bills.html
+│   ├── base.html, index.html, config.html, login.html, …
+├── static/
+│   ├── css/theoos.css     # Design system v2
+│   ├── js/theoos-notify.js
+│   └── manifest.json, sw.js, uploads/
+├── scripts/               # winsw-web.cmd, winsw-bot.cmd, install-winsw.ps1
+├── tests/test_smoke.py
+├── docs/                  # API, DEPLOY, PROJECT_MEMORY
+├── AGENTS.md              # Memória para assistentes de código
+├── theoos-web.xml / theoos-bot.xml
+└── requirements.txt
 ```
 
 ---

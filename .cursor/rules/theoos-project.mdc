@@ -1,0 +1,25 @@
+---
+description: ThéoOS project context, architecture, and conventions (always read first)
+alwaysApply: true
+---
+
+# ThéoOS
+
+Family finance + shopping app: **Flask** (`app.py`) + **Telegram bot** (`bot.py`) + **`theoos/`** helpers. SQLite, LAN-only, Windows + WinSW optional.
+
+## Stack
+- Python 3.10+, Flask/Jinja2, vanilla JS, Chart.js
+- Design system: `static/css/theoos.css` (teal/slate, `data-theme` light/dark)
+- Macros: `templates/macros/ui.html`, `templates/macros/bills.html`
+
+## Rules
+- UI strings: **pt-BR**. Git commits: **English**, Conventional Commits.
+- Extend `theoos/` for new backend features; register routes in `theoos/routes.py` when appropriate.
+- Dashboard bills UI: compact `bill-item` cards, max 3 visible + expand; data from `insights.week_agenda` (includes overdue).
+- Do not commit `.env`, `instance/`, `logs/`, uploads.
+- Run `pytest tests/` after Python changes.
+- Flask as service: `THEOOS_SERVICE=1` — no debug/reloader.
+- Full history and file map: **AGENTS.md** and **docs/PROJECT_MEMORY.md**.
+
+## WinSW
+`theoos-web.xml` + `theoos-bot.xml` → Auto-start web :5000 and bot. Install: `scripts/install-winsw.ps1` (Admin).
