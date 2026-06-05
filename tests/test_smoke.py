@@ -69,3 +69,12 @@ def test_pesquisa_mercado_page():
     c = app.test_client()
     assert c.get("/pesquisa").status_code == 200
     assert c.get("/pesquisa?q=leite").status_code == 200
+
+
+def test_api_sugerir_produtos():
+    c = app.test_client()
+    r = c.get("/api/sugerir_produtos?q=ab")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert "itens" in data
+    assert isinstance(data["itens"], list)

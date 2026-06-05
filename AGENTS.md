@@ -3,7 +3,7 @@
 Persistent context for AI assistants and developers working on this repo.
 
 **Repo:** https://github.com/simoesleandro/theoos-app.git  
-**Last major update:** June 2026 — UI redesign v2, `theoos/` package, WinSW services.
+**Last major update:** June 2026 — lista Telegram, detetive de preços, PDF mensal v2.
 
 ---
 
@@ -25,10 +25,11 @@ theoos/             # Service modules (imported by app + bot)
   db_migrate.py     # Schema v3, app_setting KV, incremental migrations
   backup.py         # ZIP backup (DB + uploads)
   audit.py          # Deletion audit log
-  insights.py       # week_agenda, budget_status, price alerts, market ranking
+  insights.py       # week_agenda, budget_status, price alerts, pesquisa, unit price
   recurring.py      # Monthly fixed bills templates
   reconcile.py      # Bank CSV import
-  pdf_report.py     # Monthly PDF (fpdf2)
+  pdf_report.py     # Monthly PDF (fpdf2, ThéoOS layout)
+  telegram_lista.py # Telegram shopping list HTML + inline keyboard
   routes.py         # login, config, backup, /api/*, /exportar/*
 templates/
   base.html         # Shell, Chart.js, PWA, notifications JS
@@ -87,6 +88,32 @@ theoos-web.xml / theoos-bot.xml
 ### Git
 - Commit `c976d9a`: `feat: redesign UI and expand core platform capabilities` pushed to `main`.
 
+### Phase 4 — Lista, detetive e PDF (June 2026)
+
+#### Lista de compras (web + Telegram)
+- **Web `/lista`:** removida edição inline; botão **Editar** abre modal (`data-payload` + listener; evita `tojson` em `onclick`).
+- **Autocomplete:** `GET /api/sugerir_produtos?q=...` ao digitar no modal.
+- **Telegram `/lista`:** `theoos/telegram_lista.py` — mensagem HTML formatada, botões inline (adicionar, atualizar, sugestão, riscar, abrir app).
+- **Riscar sem baixa:** campo `ListaCompras.marcado` (schema v4); toggle `lista_toggle:{id}` no bot; baixa (`comprado`) só via cupom OCR ou “Dar baixa” na web.
+- **URL Telegram:** `telegram_url_ok()` — não envia botão com `localhost`; fallback callback se `THEOOS_WEB_URL` inválido.
+
+#### Detetive de preços (`/pesquisa`, relatórios)
+- Preço justo: **R$/un = valor_total ÷ quantidade**; comparar só mesma unidade (`kg`, `un`, etc.).
+- `pesquisa_resultados()` + `_collapse_pesquisa_rows()` — agrupa mesma compra (data+loja+produto+marca+unidade); badge **“Nx no cupom”** e faixa **R$ min – R$ max/un**.
+- `minmax_por_unidade()` considera `preco_max` em linhas agrupadas.
+- Colunas na tabela: Qtd, Un., R$/un, Total; KPI relatórios com `white-space: nowrap`.
+- Testes: `tests/test_insights.py`.
+
+#### PDF mensal (`/exportar/pdf`)
+- Layout alinhado ao design ThéoOS: header teal, 4 KPI cards largura igual (`TABLE_W=182mm`).
+- Tabelas categorias / contas / transações mesma largura; cabeçalho repetido em quebra de página (`_ensure_table_space`).
+- Download: `bytes(pdf.output())` para Werkzeug.
+- Label KPI **“LANCAM.”**; valores monetários fonte 8pt alinhados à direita.
+
+#### Fixes
+- WinSW: reinstalar de `%OneDrive%\Desktop\appfamiliar` se serviço apontar path antigo.
+- Removida rota `/lista/salvar_tudo` (cache do browser pode dar 404 até hard refresh).
+
 ---
 
 ## Conventions for future changes
@@ -109,6 +136,9 @@ theoos-web.xml / theoos-bot.xml
 | Config | `/config` → PIN, reminders, theme, backup, recurring, web notify |
 | Health | `/health` |
 | PDF | `/exportar/pdf` |
+| Lista Telegram | `/lista` no bot → `theoos/telegram_lista.py` |
+| Autocomplete lista | `/api/sugerir_produtos?q=` |
+| Detetive preços | `/pesquisa` → `insights.pesquisa_resultados` |
 | Notifications API | `/api/vencimentos` |
 | WinSW install | `scripts/install-winsw.ps1` (Admin) |
 
@@ -119,6 +149,8 @@ theoos-web.xml / theoos-bot.xml
 - Browser notifications blocked on `http://<LAN-IP>` — use `localhost` or HTTPS.
 - PWA service worker only caches `/static/*` (scope under `/static/`).
 - PDF uses Latin-1 safe text (accents may simplify).
+- Detetive: nomes OCR distintos no mesmo cupom (ex. “Requeijão” vs “Requeijão Cremoso”) ficam em linhas separadas; mesma linha lógica agrupa por nome exato.
+- Telegram botão “Abrir no app” precisa `THEOOS_WEB_URL` com IP LAN (não `localhost`).
 - OneDrive path for project — WinSW `workingdirectory` is `%BASE%` (project root).
 
 ---

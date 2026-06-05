@@ -15,6 +15,8 @@ Family finance + shopping app: **Flask** (`app.py`) + **Telegram bot** (`bot.py`
 ## Rules
 - UI strings: **pt-BR**. Git commits: **English**, Conventional Commits.
 - Extend `theoos/` for new backend features; register routes in `theoos/routes.py` when appropriate.
+- Lista: edit via modal only (`data-payload`); Telegram em `theoos/telegram_lista.py`; `marcado` ≠ `comprado`.
+- Pesquisa/detetive: preço unitário = total÷qtd; `_collapse_pesquisa_rows` agrupa mesmo cupom; PDF em `theoos/pdf_report.py` (`TABLE_W=182`).
 - Dashboard bills UI: compact `bill-item` cards, max 3 visible + expand; data from `insights.week_agenda` (includes overdue).
 - Do not commit `.env`, `instance/`, `logs/`, uploads.
 - Run `pytest tests/` after Python changes.

@@ -70,6 +70,7 @@ class ListaCompras(db.Model):
     categoria = db.Column(db.String(50), default='Outros')
     marca = db.Column(db.String(100), nullable=True)
     status = db.Column(db.String(20), default='pendente')
+    marcado = db.Column(db.Boolean, default=False)
     criado_por = db.Column(db.String(50), nullable=True)
 
 
@@ -190,6 +191,11 @@ with app.app_context():
             pass
         try:
             conn.execute(text('ALTER TABLE lista_compras ADD COLUMN marca TEXT'))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text('ALTER TABLE lista_compras ADD COLUMN marcado INTEGER NOT NULL DEFAULT 0'))
             conn.commit()
         except Exception:
             pass
@@ -519,6 +525,7 @@ def marcar_comprado(id):
     if item:
         if qtd_comprada >= item.quantidade:
             item.status = 'comprado'
+            item.marcado = False
         else:
             item.quantidade -= qtd_comprada
 
@@ -574,41 +581,8 @@ def relatorios():
     if gastos_por_cat:
         categoria_lider = max(gastos_por_cat, key=gastos_por_cat.get)
 
-    # Análise de Variação de Preços (Diferentes Datas)
-    # Apenas itens associados a gastos/debitos
-    itens_recentes = ItemGasto.query.join(Financas).filter(Financas.tipo == 'debito').order_by(Financas.data.desc()).all()
-    historico_produtos = defaultdict(list)
-    for item in itens_recentes:
-        nome_chave = item.nome_normalizado or item.nome
-        historico_produtos[nome_chave].append(item)
-        
-    variacoes = []
-    for nome, registros in historico_produtos.items():
-        if len(registros) >= 2:
-            recente = registros[0]
-            # Encontra o primeiro registro com data diferente do recente
-            anterior = None
-            for reg in registros[1:]:
-                if reg.nota.data.date() != recente.nota.data.date():
-                    anterior = reg
-                    break
-            
-            if anterior:
-                diff = recente.valor_unitario - anterior.valor_unitario
-                if abs(diff) > 0.01:
-                    pct = (diff / anterior.valor_unitario * 100) if anterior.valor_unitario > 0 else 0
-                    variacoes.append({
-                        'produto': nome,
-                        'preco_recente': recente.valor_unitario,
-                        'data_recente': recente.nota.data,
-                        'preco_anterior': anterior.valor_unitario,
-                        'data_anterior': anterior.nota.data,
-                        'variacao': diff,
-                        'percentual': pct
-                    })
-                    
-    variacoes.sort(key=lambda x: abs(x['variacao']), reverse=True)
-    variacoes_principais = variacoes[:5]
+    from theoos import insights
+    variacoes_principais = insights.price_variations(db, ItemGasto, Financas, limit=5)
 
     # ── ANÁLISE DE VENCIMENTOS ────────────────────────────────────────────────
     hoje_data = date.today()
@@ -806,16 +780,10 @@ def deletar_transacao(id):
 @app.route('/pesquisa')
 def pesquisa():
     termo = request.args.get('q', '').strip()
-    resultados = []
-    if termo:
-        resultados = ItemGasto.query.filter(
-            db.or_(
-                ItemGasto.nome.ilike(f'%{termo}%'),
-                ItemGasto.nome_normalizado.ilike(f'%{termo}%'),
-                ItemGasto.marca.ilike(f'%{termo}%')
-            )
-        ).all()
-        resultados.sort(key=lambda x: x.nota.data, reverse=True)
+    from theoos import insights
+
+    resultados = insights.pesquisa_resultados(db, ItemGasto, Financas, termo) if termo else []
+    minmax_unidades = insights.minmax_por_unidade(resultados) if resultados else {}
 
     # Buscar os itens que mais são gastos (maior soma de valor_total) no banco de dados
     try:
@@ -844,8 +812,6 @@ def pesquisa():
         if not exists:
             itens_populares.append(default_item)
 
-    from theoos import insights
-
     mercado_ranking = (
         insights.market_ranking_global(db, ItemGasto, Financas) if not termo else []
     )
@@ -856,6 +822,7 @@ def pesquisa():
         "pesquisa.html",
         termo=termo,
         resultados=resultados,
+        minmax_unidades=minmax_unidades,
         itens_populares=itens_populares,
         mercado_ranking=mercado_ranking,
         mercado_produto=mercado_produto,
@@ -1327,70 +1294,32 @@ def lista_editar(id):
     return redirect(url_for('lista_compras'))
 
 
-@app.route('/lista/salvar_tudo', methods=['POST'])
-def lista_salvar_tudo():
-    dados = request.get_json() or {}
-    itens = dados.get('itens', [])
-    for it in itens:
-        item_id = it.get('id')
-        item_obj = db.session.get(ListaCompras, item_id)
-        if item_obj:
-            item = it.get('item', '').strip()
-            if item:
-                item_obj.item = item
-                item_obj.marca = it.get('marca', '').strip() or None
-                try:
-                    item_obj.quantidade = float(str(it.get('quantidade', '1')).replace(',', '.'))
-                except ValueError:
-                    item_obj.quantidade = 1.0
-                item_obj.unidade = it.get('unidade', 'un')
-                item_obj.categoria = it.get('categoria', 'Outros')
-    db.session.commit()
-    return jsonify({'sucesso': True})
-
-
 @app.route('/lista/enviar_telegram')
 def lista_enviar_telegram():
-    itens_pendentes = ListaCompras.query.filter_by(status='pendente').all()
+    from theoos import telegram_lista
+
+    itens_pendentes = ListaCompras.query.filter_by(status='pendente').order_by(ListaCompras.categoria, ListaCompras.item).all()
     if not itens_pendentes:
         flash('Nenhum item pendente na lista de compras.', 'warning')
         return redirect(url_for('lista_compras'))
-        
+
     token = os.getenv('TELEGRAM_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    
+
     if not token or not chat_id:
         flash('Configurações do Telegram ausentes no servidor.', 'danger')
         return redirect(url_for('lista_compras'))
-        
-    # Formata a lista (linguagem alinhada ao ThéoOS)
-    msg = "*ThéoOS — Lista de compras*\n"
-    msg += f"_Atualizado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}_\n\n"
-    msg += f"*Pendentes ({len(itens_pendentes)}):*\n"
-    
-    por_categoria = defaultdict(list)
-    for it in itens_pendentes:
-        por_categoria[it.categoria].append(it)
-        
-    for cat, items in por_categoria.items():
-        msg += f"\n• *{cat}:*\n"
-        for it in items:
-            qty_val = it.quantidade
-            if qty_val == int(qty_val):
-                qty_str = str(int(qty_val))
-            else:
-                qty_str = f"{qty_val:.1f}".replace('.', ',')
-                
-            msg += f"  [ ] {it.item} ({qty_str} {it.unidade})\n"
-            
+
+    total_estimado = telegram_lista.calc_total_estimado(itens_pendentes, ItemGasto, db)
+
     try:
         import telebot
         bot = telebot.TeleBot(token)
-        bot.send_message(chat_id, msg, parse_mode='Markdown')
+        telegram_lista.send_lista_message(bot, chat_id, itens_pendentes, total_estimado=total_estimado)
         flash('Lista de compras enviada com sucesso para o Telegram!', 'success')
     except Exception as e:
         flash(f'Erro ao enviar mensagem via robô: {e}', 'danger')
-        
+
     return redirect(url_for('lista_compras'))
 
 
@@ -1599,41 +1528,84 @@ def deletar_categoria(id):
     return redirect(url_for('categorias'))
 
 
+def _produto_sugestao_dict(nome, marca, unidade, categoria, ultimo_preco):
+    return {
+        'nome': nome,
+        'marca': marca or '',
+        'unidade': unidade or 'un',
+        'categoria': categoria or 'Outros',
+        'ultimo_preco': ultimo_preco,
+    }
+
+
 @app.route('/api/sugerir_produto')
 def sugerir_produto():
     nome = request.args.get('nome', '').strip()
     if not nome:
         return jsonify({'categoria': None, 'ultimo_preco': None})
-    
-    # 1. Tenta correspondência exata case-insensitive (nome ou nome_normalizado)
-    gasto = ItemGasto.query.filter(
-        db.or_(
-            db.func.lower(ItemGasto.nome) == db.func.lower(nome),
-            db.func.lower(ItemGasto.nome_normalizado) == db.func.lower(nome)
-        )
-    ).order_by(ItemGasto.id.desc()).first()
-    
-    if gasto:
+
+    itens = _buscar_sugestoes_produto(nome, limit=1)
+    if itens:
         return jsonify({
-            'categoria': gasto.categoria,
-            'ultimo_preco': gasto.valor_unitario
+            'categoria': itens[0]['categoria'],
+            'ultimo_preco': itens[0]['ultimo_preco'],
         })
-        
-    # 2. Tenta correspondência parcial (substring) como fallback (nome ou nome_normalizado)
-    gasto_parcial = ItemGasto.query.filter(
-        db.or_(
-            ItemGasto.nome.ilike(f'%{nome}%'),
-            ItemGasto.nome_normalizado.ilike(f'%{nome}%')
-        )
-    ).order_by(ItemGasto.id.desc()).first()
-    
-    if gasto_parcial:
-        return jsonify({
-            'categoria': gasto_parcial.categoria,
-            'ultimo_preco': gasto_parcial.valor_unitario
-        })
-        
     return jsonify({'categoria': None, 'ultimo_preco': None})
+
+
+@app.route('/api/sugerir_produtos')
+def sugerir_produtos():
+    q = request.args.get('q', request.args.get('nome', '')).strip()
+    if len(q) < 2:
+        return jsonify({'itens': []})
+    return jsonify({'itens': _buscar_sugestoes_produto(q, limit=8)})
+
+
+def _buscar_sugestoes_produto(q, limit=8):
+    """Busca produtos no histórico de gastos e na lista de compras."""
+    seen = set()
+    results = []
+
+    gastos = ItemGasto.query.filter(
+        db.or_(
+            ItemGasto.nome.ilike(f'%{q}%'),
+            ItemGasto.nome_normalizado.ilike(f'%{q}%'),
+        )
+    ).order_by(ItemGasto.id.desc()).limit(50).all()
+
+    for g in gastos:
+        nome = (g.nome_normalizado or g.nome or '').strip()
+        if not nome:
+            continue
+        key = (nome.lower(), (g.marca or '').strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append(_produto_sugestao_dict(
+            nome, g.marca, g.unidade, g.categoria, g.valor_unitario
+        ))
+        if len(results) >= limit:
+            return results
+
+    lista_itens = ListaCompras.query.filter(
+        ListaCompras.item.ilike(f'%{q}%')
+    ).order_by(ListaCompras.id.desc()).limit(30).all()
+
+    for lc in lista_itens:
+        nome = (lc.item or '').strip()
+        if not nome:
+            continue
+        key = (nome.lower(), (lc.marca or '').strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append(_produto_sugestao_dict(
+            nome, lc.marca, lc.unidade, lc.categoria, None
+        ))
+        if len(results) >= limit:
+            break
+
+    return results
 
 
 # ── UPLOAD DE CUPOM PELO SITE (OCR via Gemini) ────────────────────────────────
@@ -1782,6 +1754,7 @@ Retorne SOMENTE JSON puro:
         lc = db.session.get(ListaCompras, int(cid))
         if lc and lc.status == 'pendente':
             lc.status = 'comprado'
+            lc.marcado = False
 
     db.session.commit()
 

@@ -120,8 +120,9 @@
   </div>
 
   {% if resultados %}
-    {% set min_price = resultados | map(attribute='valor_unitario') | min %}
-    {% set max_price = resultados | map(attribute='valor_unitario') | max %}
+    <p class="tx-meta pesquisa-hint">
+      Preços por unidade de medida (total ÷ quantidade). Compare apenas itens com a mesma unidade.
+    </p>
 
     <div class="panel pesquisa-table-wrap">
       <table class="data-table pesquisa-table">
@@ -133,49 +134,75 @@
             <th>Produto</th>
             <th class="col-hide-mobile">Marca</th>
             <th class="col-hide-mobile">Categoria</th>
-            <th style="text-align:right">Unit.</th>
+            <th style="text-align:right" class="col-hide-mobile">Qtd</th>
+            <th style="text-align:center">Un.</th>
+            <th style="text-align:right">R$/un</th>
+            <th style="text-align:right" class="col-hide-mobile">Total</th>
           </tr>
         </thead>
         <tbody>
           {% for item in resultados %}
+          {% set bounds = minmax_unidades.get(item.unidade) %}
+          {% set is_min = bounds and item.preco_unitario == bounds.min and bounds.count > 1 %}
+          {% set is_max = bounds and item.preco_unitario == bounds.max and bounds.min != bounds.max %}
           <tr>
             <td>
-              <input type="checkbox" class="compare-checkbox" aria-label="Comparar {{ item.nome_normalizado or item.nome }}"
-                     data-nome="{{ item.nome_normalizado or item.nome }}"
+              <input type="checkbox" class="compare-checkbox" aria-label="Comparar {{ item.nome_normalizado }}"
+                     data-nome="{{ item.nome_normalizado }}"
                      data-marca="{{ item.marca or '' }}"
-                     data-preco="{{ item.valor_unitario }}"
-                     data-local="{{ item.nota.descricao | replace('IA: ', '') | replace('Compra: ', '') }}"
+                     data-preco="{{ item.preco_unitario }}"
+                     data-unidade="{{ item.unidade }}"
+                     data-qtd="{{ item.quantidade }}"
+                     data-local="{{ item.mercado }}"
                      data-data="{{ item.nota.data.strftime('%d/%m/%Y') }}">
             </td>
             <td class="tx-meta">{{ item.nota.data.strftime('%d/%m/%Y') }}</td>
-            <td class="col-hide-mobile tx-meta">{{ item.nota.descricao | replace('IA: ', '') | replace('Compra: ', '') }}</td>
-            <td>{{ item.nome_normalizado or item.nome }}</td>
-            <td class="col-hide-mobile tx-meta">{{ item.marca or '—' }}</td>
-            <td class="col-hide-mobile">{{ chip(item.categoria) }}</td>
-            <td style="text-align:right">
-              <span class="price-unit {% if item.valor_unitario == max_price and max_price != min_price %}is-max{% endif %}">
-                {{ item.valor_unitario | dinheiro }}
-              </span>
-              {% if item.valor_unitario == min_price and resultados | length > 1 %}
-                <span class="price-tag">menor</span>
+            <td class="col-hide-mobile tx-meta" title="{{ item.mercado }}">{{ item.mercado[:28] }}{% if item.mercado | length > 28 %}…{% endif %}</td>
+            <td>
+              {{ item.nome_normalizado }}
+              {% if item.agrupado %}
+                <span class="price-tag" title="{{ item.variantes }} registros no mesmo cupom">{{ item.variantes }}x no cupom</span>
               {% endif %}
             </td>
+            <td class="col-hide-mobile tx-meta">{{ item.marca or '—' }}</td>
+            <td class="col-hide-mobile">{{ chip(item.categoria) }}</td>
+            <td class="col-hide-mobile font-roboto" style="text-align:right">{{ item.quantidade | numero }}</td>
+            <td class="tx-meta" style="text-align:center">{{ item.unidade }}</td>
+            <td style="text-align:right;white-space:nowrap">
+              {% if item.agrupado and item.preco_min != item.preco_max %}
+              <span class="price-unit">
+                {{ item.preco_min | dinheiro }} - {{ item.preco_max | dinheiro }}/{{ item.unidade }}
+              </span>
+              {% else %}
+              <span class="price-unit {% if is_max %}is-max{% endif %}">
+                {{ item.preco_unitario | dinheiro }}/{{ item.unidade }}
+              </span>
+              {% if is_min %}
+                <span class="price-tag">menor</span>
+              {% endif %}
+              {% endif %}
+            </td>
+            <td class="col-hide-mobile font-roboto" style="text-align:right">{{ item.valor_total | dinheiro }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
 
-    {% if resultados | length > 1 %}
+    {% if minmax_unidades | length > 0 %}
     <div class="minmax-row">
-      <div class="panel minmax-card">
-        <div class="minmax-label">Menor preço</div>
-        <div class="minmax-value low">{{ min_price | dinheiro }}</div>
+      {% for un, bounds in minmax_unidades.items() %}
+      {% if bounds.count > 1 %}
+      <div class="panel minmax-card minmax-card-unit">
+        <div class="minmax-label">Menor · {{ un }}</div>
+        <div class="minmax-value low">{{ bounds.min | dinheiro }}/{{ un }}</div>
       </div>
-      <div class="panel minmax-card">
-        <div class="minmax-label">Maior preço</div>
-        <div class="minmax-value high">{{ max_price | dinheiro }}</div>
+      <div class="panel minmax-card minmax-card-unit">
+        <div class="minmax-label">Maior · {{ un }}</div>
+        <div class="minmax-value high">{{ bounds.max | dinheiro }}/{{ un }}</div>
       </div>
+      {% endif %}
+      {% endfor %}
     </div>
     {% endif %}
   {% else %}
@@ -221,8 +248,9 @@
   }
   {% endif %}
   {% if mercado_produto %}
-  const pLabels = {{ mercado_produto | map(attribute='loja') | list | tojson }};
-  const pData = {{ mercado_produto | map(attribute='preco') | list | tojson }};
+  const pItems = {{ mercado_produto | tojson }};
+  const pLabels = pItems.map(x => `${x.loja} (${x.unidade})`);
+  const pData = pItems.map(x => x.preco);
   const elP = document.getElementById('marketChartProduct');
   if (elP && pLabels.length) {
     new Chart(elP.getContext('2d'), {
@@ -261,11 +289,21 @@ function atualizarComparacao() {
     sheet.classList.add('is-visible');
   }
 
+  const unidades = [...new Set([...checkboxes].map(cb => cb.dataset.unidade))];
+  const expl = document.getElementById('compare-diff-explanation');
+  if (unidades.length > 1) {
+    expl.textContent = 'Selecione itens com a mesma unidade (kg, un, etc.) para comparar corretamente.';
+    return;
+  }
+
   let cheapest = null, mostExpensive = null;
+  const un = unidades[0] || '';
   checkboxes.forEach(cb => {
     const preco = parseFloat(cb.dataset.preco);
     const item = {
       preco,
+      unidade: cb.dataset.unidade,
+      qtd: cb.dataset.qtd,
       nomeCompleto: cb.dataset.marca ? `${cb.dataset.nome} (${cb.dataset.marca})` : cb.dataset.nome,
       local: cb.dataset.local,
       data: cb.dataset.data
@@ -276,24 +314,24 @@ function atualizarComparacao() {
 
   if (!cheapest || !mostExpensive) return;
 
-  document.getElementById('compare-cheapest-price').textContent = fmtBR(cheapest.preco);
+  const fmtUn = p => `${fmtBR(p)}/${un}`;
+  document.getElementById('compare-cheapest-price').textContent = fmtUn(cheapest.preco);
   document.getElementById('compare-cheapest-name').textContent = cheapest.nomeCompleto;
-  document.getElementById('compare-cheapest-store').textContent = `${cheapest.local} · ${cheapest.data}`;
+  document.getElementById('compare-cheapest-store').textContent = `${cheapest.local} · ${cheapest.data} · ${cheapest.qtd} ${un}`;
 
-  document.getElementById('compare-most-expensive-price').textContent = fmtBR(mostExpensive.preco);
+  document.getElementById('compare-most-expensive-price').textContent = fmtUn(mostExpensive.preco);
   document.getElementById('compare-most-expensive-name').textContent = mostExpensive.nomeCompleto;
-  document.getElementById('compare-most-expensive-store').textContent = `${mostExpensive.local} · ${mostExpensive.data}`;
+  document.getElementById('compare-most-expensive-store').textContent = `${mostExpensive.local} · ${mostExpensive.data} · ${mostExpensive.qtd} ${un}`;
 
   const diff = mostExpensive.preco - cheapest.preco;
   const pct = cheapest.preco > 0 ? (diff / cheapest.preco * 100) : 0;
-  document.getElementById('compare-diff-value').textContent = fmtBR(diff);
+  document.getElementById('compare-diff-value').textContent = fmtUn(diff);
   document.getElementById('compare-diff-pct').textContent = diff > 0.001 ? `+${pct.toFixed(1)}%` : '0%';
 
-  const expl = document.getElementById('compare-diff-explanation');
   if (diff > 0.001) {
-    expl.innerHTML = `O mais caro custa <strong>${pct.toFixed(1)}%</strong> a mais. Economia por unidade: <strong>${fmtBR(diff)}</strong>.`;
+    expl.innerHTML = `Diferença de <strong>${fmtUn(diff)}</strong> (${pct.toFixed(1)}%) na mesma unidade (<strong>${un}</strong>).`;
   } else {
-    expl.textContent = 'Os itens selecionados têm o mesmo preço unitário.';
+    expl.textContent = `Mesmo preço por ${un} nos itens selecionados.`;
   }
 
   const summary = document.getElementById('compare-sheet-summary');

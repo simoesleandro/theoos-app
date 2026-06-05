@@ -64,8 +64,74 @@ def basket_estimates_by_store(db, ListaCompras, ItemGasto, Financas):
     return result
 
 
-def price_spike_alerts(db, ItemGasto, Financas, min_pct=10.0):
-    """Produtos com alta relevante entre duas compras em datas diferentes."""
+def _norm_unidade(unidade):
+    u = (unidade or "un").strip().lower()
+    if u in ("l",):
+        return "l"
+    if u in ("cx", "caixa"):
+        return "cx"
+    return u
+
+
+def _unit_price(item):
+    """Preço por unidade de medida (total ÷ quantidade)."""
+    qtd = float(item.quantidade or 0)
+    if qtd > 0 and item.valor_total is not None:
+        return float(item.valor_total) / qtd
+    return float(item.valor_unitario or 0)
+
+
+def _pair_last_two_purchases(regs):
+    """Última compra vs compra anterior em data diferente."""
+    if len(regs) < 2:
+        return None, None
+    recente = regs[0]
+    anterior = None
+    for reg in regs[1:]:
+        if reg.nota and recente.nota and reg.nota.data.date() != recente.nota.data.date():
+            anterior = reg
+            break
+    return recente, anterior
+
+
+def _price_variation_entry(nome, recente, anterior):
+    """Compara duas compras com mesma unidade e preço unitário normalizado."""
+    if not recente or not anterior:
+        return None
+    if _norm_unidade(recente.unidade) != _norm_unidade(anterior.unidade):
+        return None
+    if (recente.quantidade or 0) <= 0 or (anterior.quantidade or 0) <= 0:
+        return None
+
+    preco_recente = _unit_price(recente)
+    preco_anterior = _unit_price(anterior)
+    if preco_anterior <= 0:
+        return None
+
+    diff = preco_recente - preco_anterior
+    pct = (diff / preco_anterior) * 100
+    unidade = _norm_unidade(recente.unidade)
+
+    return {
+        "produto": nome,
+        "preco_recente": round(preco_recente, 4),
+        "preco_anterior": round(preco_anterior, 4),
+        "data_recente": recente.nota.data if recente.nota else None,
+        "data_anterior": anterior.nota.data if anterior.nota else None,
+        "qtd_recente": recente.quantidade,
+        "qtd_anterior": anterior.quantidade,
+        "total_recente": recente.valor_total,
+        "total_anterior": anterior.valor_total,
+        "unidade": unidade,
+        "variacao": round(diff, 4),
+        "percentual": pct,
+        "pct": pct,
+        "subiu": diff > 0,
+    }
+
+
+def price_variations(db, ItemGasto, Financas, limit=5, min_pct=5.0, min_diff=0.01):
+    """Variação de preço unitário entre duas compras em datas diferentes."""
     itens = (
         ItemGasto.query.join(Financas)
         .filter(Financas.tipo == "debito")
@@ -75,34 +141,38 @@ def price_spike_alerts(db, ItemGasto, Financas, min_pct=10.0):
     historico = defaultdict(list)
     for it in itens:
         nome = it.nome_normalizado or it.nome
-        historico[nome].append(it)
+        chave = (nome, _norm_unidade(it.unidade))
+        historico[chave].append(it)
 
-    alertas = []
-    for nome, regs in historico.items():
-        if len(regs) < 2:
+    variacoes = []
+    for (nome, _un), regs in historico.items():
+        recente, anterior = _pair_last_two_purchases(regs)
+        entry = _price_variation_entry(nome, recente, anterior)
+        if not entry:
             continue
-        recente = regs[0]
-        anterior = None
-        for reg in regs[1:]:
-            if reg.nota and recente.nota and reg.nota.data.date() != recente.nota.data.date():
-                anterior = reg
-                break
-        if not anterior or anterior.valor_unitario <= 0:
+        if abs(entry["variacao"]) < min_diff:
             continue
-        diff = recente.valor_unitario - anterior.valor_unitario
-        pct = (diff / anterior.valor_unitario) * 100
-        if abs(pct) >= min_pct:
-            alertas.append(
-                {
-                    "produto": nome,
-                    "preco_recente": recente.valor_unitario,
-                    "preco_anterior": anterior.valor_unitario,
-                    "pct": pct,
-                    "subiu": diff > 0,
-                }
-            )
-    alertas.sort(key=lambda x: abs(x["pct"]), reverse=True)
-    return alertas[:8]
+        if abs(entry["percentual"]) < min_pct:
+            continue
+        variacoes.append(entry)
+
+    variacoes.sort(key=lambda x: abs(x["variacao"]), reverse=True)
+    return variacoes[:limit]
+
+
+def price_spike_alerts(db, ItemGasto, Financas, min_pct=10.0):
+    """Produtos com alta relevante entre duas compras (preço unitário normalizado)."""
+    raw = price_variations(db, ItemGasto, Financas, limit=8, min_pct=min_pct)
+    return [
+        {
+            "produto": v["produto"],
+            "preco_recente": v["preco_recente"],
+            "preco_anterior": v["preco_anterior"],
+            "pct": v["pct"],
+            "subiu": v["subiu"],
+        }
+        for v in raw
+    ]
 
 
 def missing_habit_products(db, ItemGasto, Financas, days=45):
@@ -221,7 +291,9 @@ def market_ranking_global(db, ItemGasto, Financas, min_samples=2, limit=10):
     )
     by_store = defaultdict(list)
     for it in itens:
-        by_store[_item_mercado(it)].append(it.valor_unitario)
+        if (it.quantidade or 0) <= 0:
+            continue
+        by_store[_item_mercado(it)].append(_unit_price(it))
 
     rows = []
     for loja, precos in by_store.items():
@@ -240,8 +312,22 @@ def market_ranking_global(db, ItemGasto, Financas, min_samples=2, limit=10):
     return rows[:limit]
 
 
-def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
-    """Último preço registrado por mercado para um produto (busca)."""
+def _pesquisa_dedupe_key(it, preco_u):
+    nome = (it.nome_normalizado or it.nome or "").strip().lower()
+    marca = (it.marca or "").strip().lower()
+    return (
+        it.financa_id,
+        nome,
+        marca,
+        _norm_unidade(it.unidade),
+        round(float(it.quantidade or 0), 3),
+        round(preco_u, 4),
+        round(float(it.valor_total or 0), 2),
+    )
+
+
+def pesquisa_resultados(db, ItemGasto, Financas, termo):
+    """Histórico de busca com preço unitário (total ÷ qtd) e deduplicação."""
     if not termo or not termo.strip():
         return []
     t = termo.strip()
@@ -258,17 +344,123 @@ def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
         .order_by(Financas.data.desc())
         .all()
     )
-    by_store = {}
+    seen = set()
+    rows = []
     for it in itens:
-        loja = _item_mercado(it)
-        if loja in by_store:
+        if (it.quantidade or 0) <= 0:
             continue
-        by_store[loja] = {
+        preco_u = round(_unit_price(it), 4)
+        key = _pesquisa_dedupe_key(it, preco_u)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "id": it.id,
+                "nome": it.nome,
+                "nome_normalizado": it.nome_normalizado or it.nome,
+                "marca": it.marca,
+                "categoria": it.categoria,
+                "quantidade": it.quantidade,
+                "unidade": _norm_unidade(it.unidade),
+                "valor_total": it.valor_total,
+                "preco_unitario": preco_u,
+                "nota": it.nota,
+                "mercado": _item_mercado(it),
+            }
+        )
+    return _collapse_pesquisa_rows(rows)
+
+
+def _collapse_pesquisa_rows(rows):
+    """Agrupa mesma compra (data+loja+produto+marca+unidade) em uma linha."""
+    grupos = defaultdict(list)
+    for r in rows:
+        data = r["nota"].data.date() if r.get("nota") and r["nota"].data else None
+        chave = (
+            data,
+            r["mercado"],
+            (r["nome_normalizado"] or "").strip().lower(),
+            (r["marca"] or "").strip().lower(),
+            r["unidade"],
+        )
+        grupos[chave].append(r)
+
+    out = []
+    for items in grupos.values():
+        items.sort(key=lambda x: x["preco_unitario"])
+        base = dict(items[0])
+        if len(items) > 1:
+            precos = [i["preco_unitario"] for i in items]
+            totais = sorted({round(i["valor_total"], 2) for i in items})
+            base["agrupado"] = True
+            base["variantes"] = len(items)
+            base["preco_min"] = min(precos)
+            base["preco_max"] = max(precos)
+            base["totais_distintos"] = totais
+            base["preco_unitario"] = min(precos)
+            base["valor_total"] = items[0]["valor_total"]
+        else:
+            base["agrupado"] = False
+        out.append(base)
+
+    out.sort(
+        key=lambda x: x["nota"].data if x.get("nota") and x["nota"].data else datetime.min,
+        reverse=True,
+    )
+    return out
+
+
+def minmax_por_unidade(resultados):
+    """Menor/maior preço unitário agrupado por unidade de medida."""
+    grupos = defaultdict(list)
+    for r in resultados:
+        grupos[r["unidade"]].append(r["preco_unitario"])
+        if r.get("agrupado") and r.get("preco_max") is not None:
+            grupos[r["unidade"]].append(r["preco_max"])
+    out = {}
+    for un, precos in grupos.items():
+        if not precos:
+            continue
+        out[un] = {"min": min(precos), "max": max(precos), "count": len(precos)}
+    return out
+
+
+def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
+    """Último preço unitário por mercado e unidade para um produto."""
+    if not termo or not termo.strip():
+        return []
+    t = termo.strip()
+    itens = (
+        ItemGasto.query.join(Financas)
+        .filter(
+            Financas.tipo == "debito",
+            or_(
+                ItemGasto.nome.ilike(f"%{t}%"),
+                ItemGasto.nome_normalizado.ilike(f"%{t}%"),
+                ItemGasto.marca.ilike(f"%{t}%"),
+            ),
+        )
+        .order_by(Financas.data.desc())
+        .all()
+    )
+    by_store_unit = {}
+    for it in itens:
+        if (it.quantidade or 0) <= 0:
+            continue
+        loja = _item_mercado(it)
+        un = _norm_unidade(it.unidade)
+        chave = (loja, un)
+        if chave in by_store_unit:
+            continue
+        by_store_unit[chave] = {
             "loja": loja,
-            "preco": round(it.valor_unitario, 2),
+            "unidade": un,
+            "preco": round(_unit_price(it), 2),
             "produto": it.nome_normalizado or it.nome,
+            "quantidade": it.quantidade,
             "data": it.nota.data.strftime("%d/%m/%Y") if it.nota else "",
         }
-    rows = list(by_store.values())
+    rows = list(by_store_unit.values())
     rows.sort(key=lambda x: x["preco"])
     return rows[:limit]

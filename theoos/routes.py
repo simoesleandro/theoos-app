@@ -361,8 +361,11 @@ def register(app, db, models):
             contas_pendentes,
         )
         fname = f"theoos-{year}-{month:02d}.pdf"
+        if isinstance(pdf_bytes, bytearray):
+            pdf_bytes = bytes(pdf_bytes)
         resp = make_response(pdf_bytes)
         resp.headers["Content-Type"] = "application/pdf"
+        resp.headers["Content-Length"] = str(len(pdf_bytes))
         resp.headers["Content-Disposition"] = f'attachment; filename="{fname}"'
         return resp
 

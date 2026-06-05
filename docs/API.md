@@ -38,6 +38,7 @@ Rotas JSON e utilitárias usadas pelo painel web.
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/api/sugerir_produto?nome=...` | `{ categoria, ultimo_preco }` |
+| GET | `/api/sugerir_produtos?q=...` | `{ itens: [{ nome, marca, unidade, categoria, ultimo_preco }] }` |
 
 ## Upload cupom (editor)
 

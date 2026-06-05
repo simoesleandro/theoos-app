@@ -17,6 +17,8 @@ from google import genai
 from google.genai import types
 
 from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber, Orcamento, Categoria, datetime as app_datetime, timedelta as app_timedelta
+from theoos import telegram_lista
+from theoos.audit import log_action
 
 load_dotenv()
 
@@ -28,6 +30,9 @@ client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 NOME_MODELO = 'gemini-2.5-flash'
 
 CATEGORIAS = "'Hortifruti', 'Supermercado', 'Farmácia', 'Suplemento Alimentar', 'Outros'"
+
+# Estados conversacionais (adicionar item / sugerir melhoria)
+_user_states = {}
 
 
 # ── ALERTAS ───────────────────────────────────────────────────────────────────
@@ -164,15 +169,25 @@ def adicionar_item(message):
     bot.reply_to(message, f"✅ _{texto}_ adicionado à lista!", parse_mode="Markdown")
 
 
+def _enviar_lista_formatada(chat_id):
+    try:
+        with app.app_context():
+            itens = ListaCompras.query.filter_by(status='pendente').order_by(
+                ListaCompras.categoria, ListaCompras.item
+            ).all()
+            total = telegram_lista.calc_total_estimado(itens, ItemGasto, db) if itens else 0
+        if not itens:
+            bot.send_message(chat_id, "✨ Lista vazia! Nada pendente.", parse_mode="HTML")
+            return
+        telegram_lista.send_lista_message(bot, chat_id, itens, total_estimado=total)
+    except Exception as e:
+        print(f"ERRO LISTA TELEGRAM: {e}")
+        bot.send_message(chat_id, "❌ Erro ao enviar a lista. Tente novamente em instantes.")
+
+
 @bot.message_handler(commands=['lista'])
 def ver_lista(message):
-    with app.app_context():
-        itens = ListaCompras.query.filter_by(status='pendente').all()
-    if not itens:
-        bot.reply_to(message, "A lista está vazia! 🎉")
-        return
-    linhas = "\n".join(f"• {i.quantidade} {i.unidade} — {i.item}" for i in itens)
-    bot.reply_to(message, f"🛒 *Lista de compras:*\n\n{linhas}", parse_mode="Markdown")
+    _enviar_lista_formatada(message.chat.id)
 
 
 @bot.message_handler(commands=['gasto'])
@@ -373,6 +388,7 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
                     item_lista = db.session.get(ListaCompras, cid)
                     if item_lista and item_lista.status == 'pendente':
                         item_lista.status = 'comprado'
+                        item_lista.marcado = False
                         msg += f"~ {item_lista.item} ~\n"
 
             db.session.commit()
@@ -439,7 +455,192 @@ Retorne JSON: {{"itens":[{{"nome":"Batata","quantidade":2.0,"unidade":"kg","cate
         bot.reply_to(message, "❌ Erro ao processar áudio.")
 
 
-@bot.message_handler(func=lambda m: not m.text.startswith('/'))
+def _actor_telegram(message):
+    u = message.from_user
+    return f"telegram:{u.username or u.first_name or 'user'}"
+
+
+def _adicionar_item_telegram(chat_id, texto, actor):
+    texto = (texto or "").strip()
+    if not texto:
+        bot.send_message(chat_id, "❌ Informe o nome do item (ex: Leite 2 un).")
+        return False
+    try:
+        prompt = f"""
+O usuário quer adicionar à lista de compras: "{texto}"
+Extraia itens com nome, quantidade, unidade e categoria ({CATEGORIAS}).
+Retorne JSON: {{"itens":[{{"nome":"Leite","quantidade":2.0,"unidade":"un","categoria":"Supermercado"}}]}}
+"""
+        resposta = client.models.generate_content(
+            model=NOME_MODELO,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        novos_itens = json.loads(resposta.text.strip()).get("itens", [])
+        if not novos_itens:
+            bot.send_message(chat_id, "🤔 Não entendi o item. Tente de novo (ex: Pão 2 un).")
+            return False
+        with app.app_context():
+            for i in novos_itens:
+                db.session.add(ListaCompras(
+                    item=i["nome"].capitalize(),
+                    quantidade=float(i.get("quantidade", 1)),
+                    unidade=i.get("unidade", "un"),
+                    categoria=i.get("categoria", "Outros"),
+                    status="pendente",
+                    criado_por=actor,
+                ))
+            db.session.commit()
+        linhas = "\n".join(
+            f"• {i.get('quantidade', 1)} {i.get('unidade', 'un')} — {i['nome']}"
+            for i in novos_itens
+        )
+        bot.send_message(chat_id, f"✅ <b>Adicionado à lista:</b>\n{linhas}", parse_mode="HTML")
+        return True
+    except Exception as e:
+        print(f"ERRO ADD LISTA: {e}")
+        bot.send_message(chat_id, "❌ Erro ao adicionar item.")
+        return False
+
+
+@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("lista_"))
+def callback_lista(call):
+    chat_id = call.message.chat.id
+    data = call.data
+
+    try:
+        if data == "lista_add":
+            _user_states[chat_id] = "adding_item"
+            bot.answer_callback_query(call.id)
+            bot.send_message(
+                chat_id,
+                "➕ <b>Adicionar item</b>\n\nDigite o produto (ex: <i>Leite 2 un</i> ou <i>Frango 1 kg</i>).",
+                parse_mode="HTML",
+            )
+            return
+
+        if data == "lista_melhoria":
+            _user_states[chat_id] = "melhoria"
+            bot.answer_callback_query(call.id)
+            bot.send_message(
+                chat_id,
+                "💡 <b>Sugerir melhoria</b>\n\nDescreva o que podemos melhorar no ThéoOS:",
+                parse_mode="HTML",
+            )
+            return
+
+        if data == "lista_riscar_menu":
+            with app.app_context():
+                itens = ListaCompras.query.filter_by(status="pendente").order_by(
+                    ListaCompras.categoria, ListaCompras.item
+                ).all()
+            bot.answer_callback_query(call.id)
+            if not itens:
+                bot.send_message(chat_id, "✨ Nenhum item pendente para riscar.")
+                return
+            texto = "✅ <b>Toque para riscar ou desmarcar</b>\n<i>A baixa financeira só ocorre ao processar o cupom no app.</i>"
+            bot.send_message(
+                chat_id,
+                texto,
+                parse_mode="HTML",
+                reply_markup=telegram_lista.build_riscar_keyboard(itens),
+            )
+            return
+
+        if data.startswith("lista_toggle:"):
+            item_id = int(data.split(":", 1)[1])
+            with app.app_context():
+                item = db.session.get(ListaCompras, item_id)
+                if not item or item.status != "pendente":
+                    bot.answer_callback_query(call.id, "Item não encontrado.", show_alert=True)
+                    return
+                item.marcado = not bool(item.marcado)
+                db.session.commit()
+                itens = ListaCompras.query.filter_by(status="pendente").order_by(
+                    ListaCompras.categoria, ListaCompras.item
+                ).all()
+            estado = "riscado" if item.marcado else "desmarcado"
+            bot.answer_callback_query(call.id, f"{item.item}: {estado}")
+            try:
+                bot.edit_message_reply_markup(
+                    chat_id,
+                    call.message.message_id,
+                    reply_markup=telegram_lista.build_riscar_keyboard(itens),
+                )
+            except Exception:
+                pass
+            return
+
+        if data == "lista_open":
+            url = telegram_lista.web_lista_url()
+            bot.answer_callback_query(call.id)
+            bot.send_message(
+                chat_id,
+                f"🌐 <b>Painel ThéoOS</b>\n\nAbra no navegador:\n<code>{url}</code>\n\n"
+                "<i>Dica: defina THEOOS_WEB_URL no .env com o IP da rede "
+                "(ex: http://192.168.0.10:5000) para botão direto no celular.</i>",
+                parse_mode="HTML",
+            )
+            return
+
+        if data == "lista_refresh":
+            bot.answer_callback_query(call.id, "Atualizando lista...")
+            with app.app_context():
+                itens = ListaCompras.query.filter_by(status="pendente").order_by(
+                    ListaCompras.categoria, ListaCompras.item
+                ).all()
+                total = telegram_lista.calc_total_estimado(itens, ItemGasto, db) if itens else 0
+            if not itens:
+                bot.edit_message_text(
+                    "✨ Lista vazia! Nada pendente.",
+                    chat_id,
+                    call.message.message_id,
+                    parse_mode="HTML",
+                )
+                return
+            texto = telegram_lista.format_lista_html(itens, total_estimado=total)
+            if len(texto) > 4000:
+                texto = texto[:3900] + "\n\n<i>(lista truncada)</i>"
+            bot.edit_message_text(
+                texto,
+                chat_id,
+                call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=telegram_lista.build_action_keyboard(),
+                disable_web_page_preview=True,
+            )
+    except Exception as e:
+        print(f"ERRO CALLBACK LISTA: {e}")
+        bot.answer_callback_query(call.id, "Erro ao processar.", show_alert=True)
+
+
+@bot.message_handler(func=lambda m: m.text and _user_states.get(m.chat.id) == "adding_item")
+def handle_lista_add_text(message):
+    _user_states.pop(message.chat.id, None)
+    actor = _actor_telegram(message)
+    ok = _adicionar_item_telegram(message.chat.id, message.text, actor)
+    if ok:
+        _enviar_lista_formatada(message.chat.id)
+
+
+@bot.message_handler(func=lambda m: m.text and _user_states.get(m.chat.id) == "melhoria")
+def handle_melhoria_text(message):
+    _user_states.pop(message.chat.id, None)
+    texto = (message.text or "").strip()
+    if not texto:
+        bot.reply_to(message, "❌ Descreva a melhoria sugerida.")
+        return
+    actor = _actor_telegram(message)
+    with app.app_context():
+        log_action(db, "sugestao", "melhoria", detail=texto[:500], actor=actor)
+    bot.reply_to(
+        message,
+        "💡 Obrigado! Sua sugestão foi registrada e será analisada.",
+        parse_mode="HTML",
+    )
+
+
+@bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def processar_texto(message):
     try:
         prompt = f"""

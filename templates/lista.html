@@ -45,14 +45,10 @@
   <div class="panel-body">
     <form action="/lista/add" method="POST">
       <div class="add-form-grid">
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group autocomplete-wrap" style="margin-bottom:0">
           <label class="form-label">Item</label>
-          <input type="text" id="add-item-name" name="item" class="form-input" placeholder="Ex: Frango" required autofocus autocomplete="off" list="produtos-db">
-          <datalist id="produtos-db">
-            {% for prod in produtos_historico %}
-              <option value="{{ prod.nome_item }}" data-marca="{{ prod.marca or '' }}" data-unidade="{{ prod.unidade or 'un' }}" data-categoria="{{ prod.categoria or 'Supermercado' }}">{{ prod.marca or '' }} ({{ prod.categoria or '' }})</option>
-            {% endfor %}
-          </datalist>
+          <input type="text" id="add-item-name" name="item" class="form-input" placeholder="Ex: Frango" required autofocus autocomplete="off">
+          <ul id="add-item-suggestions" class="autocomplete-list" hidden></ul>
         </div>
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">Marca</label>
@@ -100,11 +96,7 @@
       <div class="panel-title">Pendentes</div>
       <span class="panel-toolbar-meta">{{ itens_pendentes | length }} item{% if itens_pendentes | length != 1 %}s{% endif %}</span>
     </div>
-    <div class="panel-toolbar-actions">
-      {% if itens_pendentes %}
-      <button type="button" id="btn-salvar-lista" class="btn btn-primary btn-sm" onclick="salvarTudoLista()">Salvar tudo</button>
-      {% endif %}
-    </div>
+    <div class="panel-toolbar-actions"></div>
   </div>
 
   {% if total_estimado and total_estimado > 0 %}
@@ -135,10 +127,10 @@
   {% if itens_pendentes %}
     <div class="lista-cards">
       {% for item in itens_pendentes %}
-      <article class="lista-card">
+      <article class="lista-card{% if item.marcado %} lista-card-marcado{% endif %}">
         <div class="lista-card-header">
           <div>
-            <div class="lista-card-name">{{ item.item }}</div>
+            <div class="lista-card-name{% if item.marcado %} lista-nome-riscado{% endif %}">{{ item.item }}{% if item.marcado %} <span class="lista-badge-riscado">riscado no Telegram</span>{% endif %}</div>
             <div class="lista-card-meta">{{ item.quantidade | numero }} {{ item.unidade }}{% if item.marca %} · {{ item.marca }}{% endif %}</div>
             {{ chip(item.categoria) }}
           </div>
@@ -147,6 +139,7 @@
           </div>
         </div>
         <div class="lista-card-actions">
+          <button type="button" class="btn btn-ghost btn-sm btn-editar-lista" data-payload='{{ {"id": item.id, "item": item.item, "quantidade": item.quantidade, "unidade": item.unidade, "categoria": item.categoria, "marca": item.marca or ""} | tojson }}'>Editar</button>
           <button type="button" class="btn btn-success btn-sm" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')">Dar baixa</button>
           <a href="/lista/delete/{{ item.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</a>
         </div>
@@ -170,33 +163,23 @@
         </thead>
         <tbody>
           {% for item in itens_pendentes %}
-          <tr id="list-row-{{ item.id }}">
+          <tr id="list-row-{{ item.id }}" class="{% if item.marcado %}lista-row-marcado{% endif %}">
             <td>
-              <input type="text" class="form-input table-input list-item-item" value="{{ item.item }}" required>
+              <strong class="lista-readonly-name{% if item.marcado %} lista-nome-riscado{% endif %}">{{ item.item }}</strong>
+              {% if item.marcado %}<span class="lista-badge-riscado">riscado</span>{% endif %}
             </td>
-            <td>
-              <input type="text" class="form-input list-item-marca" value="{{ item.marca or '' }}" placeholder="Marca (Ex: Sadia)" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;">
+            <td style="color: var(--text-secondary); font-size: 13.5px;">{{ item.marca or '—' }}</td>
+            <td class="font-roboto" style="text-align: right; font-size: 13.5px;">{{ item.quantidade | numero }}</td>
+            <td style="color: var(--text-secondary); font-size: 13px;">
+              {% if item.unidade == 'un' %}Un
+              {% elif item.unidade == 'kg' %}Kg
+              {% elif item.unidade == 'cx' or item.unidade == 'Cx' %}Cx
+              {% elif item.unidade == 'ml' %}Ml
+              {% elif item.unidade == 'l' or item.unidade == 'L' %}L
+              {% elif item.unidade == 'g' %}g
+              {% else %}{{ item.unidade }}{% endif %}
             </td>
-            <td>
-              <input type="number" step="0.1" min="0.1" class="form-input list-item-quantidade font-roboto" value="{{ item.quantidade }}" required style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px; text-align: right; width: 70px;">
-            </td>
-            <td>
-              <select class="form-select list-item-unidade" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13px; width: 110px;">
-                <option value="un" {% if item.unidade == 'un' %}selected{% endif %}>Un (unidade)</option>
-                <option value="kg" {% if item.unidade == 'kg' %}selected{% endif %}>Kg (kilograma)</option>
-                <option value="cx" {% if item.unidade == 'cx' or item.unidade == 'Cx' %}selected{% endif %}>Cx (caixa)</option>
-                <option value="ml" {% if item.unidade == 'ml' %}selected{% endif %}>Ml (mililitro)</option>
-                <option value="l" {% if item.unidade == 'l' or item.unidade == 'L' %}selected{% endif %}>L (litro)</option>
-                <option value="g" {% if item.unidade == 'g' %}selected{% endif %}>g (grama)</option>
-              </select>
-            </td>
-            <td>
-              <select class="form-select list-item-categoria" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13px; width: 130px;">
-                {% for cat in categorias_sistema %}
-                  <option value="{{ cat }}" {% if item.categoria == cat %}selected{% endif %}>{{ cat }}</option>
-                {% endfor %}
-              </select>
-            </td>
+            <td>{{ chip(item.categoria) }}</td>
             <td class="font-roboto" style="text-align: right; vertical-align: middle;">
               {% if item.ultimo_preco %}
                 <span style="color: var(--cream); font-size: 14px;" title="Preço unitário capturado da última compra">{{ item.ultimo_preco | dinheiro }}</span>
@@ -212,7 +195,11 @@
               {% endif %}
             </td>
             <td style="text-align: right; vertical-align: middle;">
-              <div style="display: flex; justify-content: flex-end; gap: 6px;">
+              <div class="list-row-actions" style="display: flex; justify-content: flex-end; gap: 6px;">
+                <button type="button" class="btn-icon btn-editar-lista" title="Editar"
+                  data-payload='{{ {"id": item.id, "item": item.item, "quantidade": item.quantidade, "unidade": item.unidade, "categoria": item.categoria, "marca": item.marca or ""} | tojson }}'>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
                 <button type="button" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')" class="btn btn-success btn-sm">Baixa</button>
                 <a href="/lista/delete/{{ item.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</a>
               </div>
@@ -221,11 +208,6 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
-    <div style="display: flex; justify-content: flex-end; margin-top: 14px; padding: 0 16px 14px;">
-      <button type="button" id="btn-salvar-lista-footer" class="btn btn-primary" onclick="salvarTudoLista()">
-        💾 Salvar Todas as Alterações
-      </button>
     </div>
   {% else %}
     {{ empty_state('Nada pendente', 'Tudo comprado! Adicione novos itens quando for às compras.', 'check', '#adicionar-item', '+ Adicionar item') }}
@@ -375,14 +357,19 @@
 </div>
 
 <!-- Modal de Edição -->
-<div class="modal-overlay" id="modal-editar-overlay" onclick="fecharModalEditar(event)">
-  <div class="modal" style="width: 380px;">
-    <div class="modal-title">Editar Item</div>
+<div class="modal-overlay" id="modal-editar-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-editar-titulo" onclick="fecharModalEditar(event)">
+  <div class="modal" style="width: 380px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="modal-editar-titulo">Editar Item</div>
     <div class="modal-sub">Ajuste os detalhes do produto</div>
     <form id="form-editar" action="" method="POST">
-      <div class="form-group">
+      <div class="form-group autocomplete-wrap">
         <label class="form-label">Item / Produto</label>
         <input id="editar-item" type="text" name="item" class="form-input" required autocomplete="off">
+        <ul id="editar-item-suggestions" class="autocomplete-list" hidden></ul>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Marca</label>
+        <input id="editar-marca" type="text" name="marca" class="form-input" placeholder="Ex: Sadia" autocomplete="off">
       </div>
       <div class="modal-row" style="grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
         <div class="form-group" style="margin-bottom:0">
@@ -423,56 +410,6 @@
 <script>
 let itemId = null;
 
-async function salvarTudoLista() {
-  const items = [];
-  const rows = document.querySelectorAll('tr[id^="list-row-"]');
-  rows.forEach(row => {
-    const id = row.id.replace('list-row-', '');
-    const item = row.querySelector('.list-item-item').value;
-    const marca = row.querySelector('.list-item-marca').value;
-    const quantidade = row.querySelector('.list-item-quantidade').value;
-    const unidade = row.querySelector('.list-item-unidade').value;
-    const categoria = row.querySelector('.list-item-categoria').value;
-    items.push({
-      id: parseInt(id),
-      item: item,
-      marca: marca,
-      quantidade: quantidade,
-      unidade: unidade,
-      categoria: categoria
-    });
-  });
-  
-  try {
-    const btn = document.getElementById('btn-salvar-lista');
-    const btnFooter = document.getElementById('btn-salvar-lista-footer');
-    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
-    if (btnFooter) { btnFooter.disabled = true; btnFooter.textContent = 'Salvando...'; }
-    
-    const res = await fetch('/lista/salvar_tudo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ itens: items })
-    });
-    const data = await res.json();
-    if (data.sucesso) {
-      window.location.reload();
-    } else {
-      alert('Erro ao salvar as alterações.');
-      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar Tudo'; }
-      if (btnFooter) { btnFooter.disabled = false; btnFooter.textContent = '💾 Salvar Todas as Alterações'; }
-    }
-  } catch (err) {
-    alert('Erro de conexão ao tentar salvar.');
-    const btn = document.getElementById('btn-salvar-lista');
-    const btnFooter = document.getElementById('btn-salvar-lista-footer');
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar Tudo'; }
-    if (btnFooter) { btnFooter.disabled = false; btnFooter.textContent = '💾 Salvar Todas as Alterações'; }
-  }
-}
-
 function abrirModal(id, nome, qtd) {
   itemId = id;
   document.getElementById('modal-titulo').textContent = nome;
@@ -495,15 +432,16 @@ function confirmarBaixa() {
   window.location.href = `/comprado/${itemId}?qtd=${qtd}&preco=${preco}`;
 }
 
-function abrirModalEditar(id, nome, qtd, unidade, categoria) {
+function abrirModalEditar(id, nome, qtd, unidade, categoria, marca) {
   const form = document.getElementById('form-editar');
   form.action = `/lista/editar/${id}`;
-  
+
   document.getElementById('editar-item').value = nome;
+  document.getElementById('editar-marca').value = marca || '';
   document.getElementById('editar-quantidade').value = qtd;
   document.getElementById('editar-unidade').value = unidade;
   document.getElementById('editar-categoria').value = categoria;
-  
+
   document.getElementById('modal-editar-overlay').classList.add('open');
   setTimeout(() => document.getElementById('editar-item').focus(), 100);
 }
@@ -523,30 +461,98 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Lógica de sugestão e auto-vínculo de categorias e preços
-function configurarAutoLink(inputEl, selectEl) {
+function aplicarSugestaoProduto(sugestao, opts) {
+  const nomeInput = opts.nomeInput;
+  const marcaInput = opts.marcaInput;
+  const unidadeSelect = opts.unidadeSelect;
+  const categoriaSelect = opts.categoriaSelect;
+
+  if (nomeInput) nomeInput.value = sugestao.nome || '';
+  if (marcaInput && sugestao.marca) marcaInput.value = sugestao.marca;
+  if (unidadeSelect && sugestao.unidade) unidadeSelect.value = sugestao.unidade;
+  if (categoriaSelect && sugestao.categoria) categoriaSelect.value = sugestao.categoria;
+}
+
+function configurarAutocomplete(inputEl, listEl, opts) {
   let timeout = null;
-  
-  const buscarSugestao = () => {
-    const nome = inputEl.value.trim();
-    if (nome.length < 2) return;
-    
-    fetch(`/api/sugerir_produto?nome=${encodeURIComponent(nome)}`)
-      .then(response => response.json())
+  let activeIndex = -1;
+  let sugestoes = [];
+
+  const fecharLista = () => {
+    listEl.hidden = true;
+    listEl.innerHTML = '';
+    activeIndex = -1;
+    sugestoes = [];
+  };
+
+  const renderLista = () => {
+    listEl.innerHTML = '';
+    if (!sugestoes.length) {
+      fecharLista();
+      return;
+    }
+    sugestoes.forEach((s, idx) => {
+      const li = document.createElement('li');
+      li.className = 'autocomplete-item' + (idx === activeIndex ? ' is-active' : '');
+      const meta = [s.marca, s.categoria, s.unidade].filter(Boolean).join(' · ');
+      const preco = s.ultimo_preco ? `R$ ${Number(s.ultimo_preco).toFixed(2).replace('.', ',')}` : '';
+      li.innerHTML = `<span class="autocomplete-nome">${s.nome}</span>`
+        + (meta ? `<span class="autocomplete-meta">${meta}</span>` : '')
+        + (preco ? `<span class="autocomplete-preco">${preco}</span>` : '');
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        aplicarSugestaoProduto(s, opts);
+        fecharLista();
+      });
+      listEl.appendChild(li);
+    });
+    listEl.hidden = false;
+  };
+
+  const buscar = () => {
+    const q = inputEl.value.trim();
+    if (q.length < 2) {
+      fecharLista();
+      return;
+    }
+    fetch(`/api/sugerir_produtos?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
       .then(data => {
-        if (data.categoria) {
-          selectEl.value = data.categoria;
+        sugestoes = data.itens || [];
+        activeIndex = -1;
+        renderLista();
+        if (sugestoes.length === 1 && sugestoes[0].nome.toLowerCase() === q.toLowerCase()) {
+          aplicarSugestaoProduto(sugestoes[0], opts);
         }
       })
-      .catch(err => console.error("Erro ao buscar sugestão:", err));
+      .catch(err => console.error('Erro ao buscar sugestões:', err));
   };
-  
+
   inputEl.addEventListener('input', () => {
     clearTimeout(timeout);
-    timeout = setTimeout(buscarSugestao, 600);
+    timeout = setTimeout(buscar, 300);
   });
-  
-  inputEl.addEventListener('blur', buscarSugestao);
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (listEl.hidden || !sugestoes.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, sugestoes.length - 1);
+      renderLista();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      renderLista();
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      aplicarSugestaoProduto(sugestoes[activeIndex], opts);
+      fecharLista();
+    } else if (e.key === 'Escape') {
+      fecharLista();
+    }
+  });
+
+  inputEl.addEventListener('blur', () => setTimeout(fecharLista, 150));
 }
 
 function filtrarHistorico() {
@@ -558,42 +564,39 @@ function filtrarHistorico() {
   });
 }
 
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-editar-lista');
+  if (!btn || !btn.dataset.payload) return;
+  try {
+    const data = JSON.parse(btn.dataset.payload);
+    abrirModalEditar(data.id, data.item, data.quantidade, data.unidade, data.categoria, data.marca);
+  } catch (err) {
+    console.error('Erro ao abrir edição:', err);
+    alert('Não foi possível abrir o editor deste item.');
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   const addInput = document.getElementById('add-item-name');
-  const addSelect = document.getElementById('add-item-categoria');
-  if (addInput && addSelect) {
-    configurarAutoLink(addInput, addSelect);
-    
-    // Autocompletar Marca, Unidade e Categoria a partir do Datalist
-    addInput.addEventListener('input', function() {
-      const val = this.value;
-      const opts = document.querySelectorAll('#produtos-db option');
-      opts.forEach(opt => {
-        if (opt.value === val) {
-          const brand = opt.getAttribute('data-marca');
-          const unit = opt.getAttribute('data-unidade');
-          const cat = opt.getAttribute('data-categoria');
-          
-          if (brand) {
-            document.getElementById('add-item-marca').value = brand;
-          }
-          if (unit) {
-            const selectUnit = document.querySelector('select[name="unidade"]');
-            if (selectUnit) selectUnit.value = unit;
-          }
-          if (cat) {
-            const selectCat = document.getElementById('add-item-categoria');
-            if (selectCat) selectCat.value = cat;
-          }
-        }
-      });
+  const addList = document.getElementById('add-item-suggestions');
+  if (addInput && addList) {
+    configurarAutocomplete(addInput, addList, {
+      nomeInput: addInput,
+      marcaInput: document.getElementById('add-item-marca'),
+      unidadeSelect: document.querySelector('#adicionar-item select[name="unidade"]'),
+      categoriaSelect: document.getElementById('add-item-categoria'),
     });
   }
 
   const editInput = document.getElementById('editar-item');
-  const editSelect = document.getElementById('editar-categoria');
-  if (editInput && editSelect) {
-    configurarAutoLink(editInput, editSelect);
+  const editList = document.getElementById('editar-item-suggestions');
+  if (editInput && editList) {
+    configurarAutocomplete(editInput, editList, {
+      nomeInput: editInput,
+      marcaInput: document.getElementById('editar-marca'),
+      unidadeSelect: document.getElementById('editar-unidade'),
+      categoriaSelect: document.getElementById('editar-categoria'),
+    });
   }
 });
 </script>

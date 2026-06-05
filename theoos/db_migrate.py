@@ -1,7 +1,7 @@
 """Migrações incrementais SQLite (schema version em app_setting)."""
 from sqlalchemy import text
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 MIGRATIONS = [
     # v1 — auditoria, config, recorrência, criado_por
@@ -41,6 +41,10 @@ MIGRATIONS = [
     # v3 — loja no item (comparador por mercado)
     """
     ALTER TABLE item_gasto ADD COLUMN mercado TEXT;
+    """,
+    # v4 — riscado no Telegram (sem dar baixa)
+    """
+    ALTER TABLE lista_compras ADD COLUMN marcado INTEGER NOT NULL DEFAULT 0;
     """,
 ]
 
@@ -98,6 +102,18 @@ def run_migrations(db):
                     if not s:
                         continue
                     if "item_gasto" in s and _column_exists(conn, "item_gasto", "mercado"):
+                        continue
+                    try:
+                        conn.execute(text(s))
+                        conn.commit()
+                    except Exception:
+                        pass
+            elif step == 4:
+                for stmt in MIGRATIONS[3].strip().split(";"):
+                    s = stmt.strip()
+                    if not s:
+                        continue
+                    if "lista_compras" in s and _column_exists(conn, "lista_compras", "marcado"):
                         continue
                     try:
                         conn.execute(text(s))

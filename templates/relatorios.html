@@ -100,8 +100,14 @@
             <div class="variation-info">
               <div class="variation-product" title="{{ var.produto }}">{{ var.produto }}</div>
               <div class="variation-dates">
-                De {{ var.preco_anterior | dinheiro }} ({{ var.data_anterior.strftime('%d/%m/%y') }})<br>
-                Para {{ var.preco_recente | dinheiro }} ({{ var.data_recente.strftime('%d/%m/%y') }})
+                De <strong>{{ var.preco_anterior | dinheiro }}/{{ var.unidade }}</strong>
+                · {{ var.qtd_anterior | numero }} {{ var.unidade }}
+                · total {{ var.total_anterior | dinheiro }}
+                <span class="variation-date">({{ var.data_anterior.strftime('%d/%m/%y') }})</span><br>
+                Para <strong>{{ var.preco_recente | dinheiro }}/{{ var.unidade }}</strong>
+                · {{ var.qtd_recente | numero }} {{ var.unidade }}
+                · total {{ var.total_recente | dinheiro }}
+                <span class="variation-date">({{ var.data_recente.strftime('%d/%m/%y') }})</span>
               </div>
             </div>
             
@@ -126,7 +132,7 @@
         {% endfor %}
       </div>
     {% else %}
-      {{ empty_state('Sem variações de preço', 'É preciso o mesmo produto em compras em datas diferentes para comparar evolução.', 'search') }}
+      {{ empty_state('Sem variações de preço', 'É preciso o mesmo produto, mesma unidade (kg, un…) e compras em datas diferentes. A comparação usa preço unitário (total ÷ quantidade).', 'search') }}
     {% endif %}
   </div>
 </div>
