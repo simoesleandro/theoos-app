@@ -86,9 +86,20 @@ class Financas(db.Model):
     itens = db.relationship('ItemGasto', backref='nota', lazy=True)
 
 
+class Produto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(100), nullable=False)
+    marca = db.Column(db.String(50), nullable=True)
+    unidade = db.Column(db.String(20), default='un')
+    categoria = db.Column(db.String(50), default='Outros')
+    aliases = db.Column(db.Text, nullable=True)
+    criado_em = db.Column(db.DateTime, server_default=db.func.now())
+
+
 class ItemGasto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     financa_id = db.Column(db.Integer, db.ForeignKey('financas.id'), nullable=False)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=True)
     nome = db.Column(db.String(100), nullable=False)
     nome_normalizado = db.Column(db.String(100), nullable=True)
     marca = db.Column(db.String(50), nullable=True)
@@ -98,6 +109,7 @@ class ItemGasto(db.Model):
     categoria = db.Column(db.String(50), default='Outros')
     unidade = db.Column(db.String(20), default='un')
     mercado = db.Column(db.String(80), nullable=True)
+    produto = db.relationship('Produto', backref='lancamentos', lazy=True)
 
 
 class Conta(db.Model):
@@ -153,6 +165,11 @@ with app.app_context():
     from theoos.db_migrate import run_migrations
     from theoos.recurring import run_monthly_generation
     run_migrations(db)
+    try:
+        from theoos import produtos as produtos_svc
+        produtos_svc.seed_catalog_from_history(db, Produto, ItemGasto)
+    except Exception as e:
+        print(f"Seed catálogo produtos: {e}")
     try:
         run_monthly_generation(db, Conta, ContaReceber)
     except Exception as e:
@@ -1460,7 +1477,9 @@ def categorias():
         return redirect(url_for('categorias'))
 
     todas = Categoria.query.order_by(Categoria.nome).all()
-    produtos = ItemGasto.query.order_by(ItemGasto.id.desc()).all()
+    from theoos import produtos as produtos_svc
+    produtos_svc.seed_catalog_from_history(db, Produto, ItemGasto)
+    produtos = produtos_svc.list_produtos_com_stats(db, Produto, ItemGasto)
     return render_template('categorias.html', categorias=todas, produtos=produtos)
 
 
@@ -1528,6 +1547,60 @@ def deletar_categoria(id):
     return redirect(url_for('categorias'))
 
 
+@app.route('/categorias/produto/salvar/<int:id>', methods=['POST'])
+def salvar_produto_catalogo(id):
+    from theoos import produtos as produtos_svc
+    try:
+        produtos_svc.update_produto_catalog(
+            db, Produto, ItemGasto, ListaCompras, id,
+            nome=request.form.get('nome', ''),
+            marca=request.form.get('marca', ''),
+            unidade=request.form.get('unidade', 'un'),
+            categoria=request.form.get('categoria', 'Outros'),
+            aliases_raw=request.form.get('aliases', ''),
+        )
+        return jsonify({'sucesso': True})
+    except ValueError as e:
+        return jsonify({'sucesso': False, 'erro': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'sucesso': False, 'erro': str(e)}), 500
+
+
+@app.route('/categorias/produto/fusao', methods=['POST'])
+def fusao_produtos():
+    from theoos import produtos as produtos_svc
+    data = request.get_json(silent=True) or {}
+    target_id = data.get('target_id')
+    source_ids = data.get('source_ids') or []
+    if not target_id or len(source_ids) < 1:
+        return jsonify({'sucesso': False, 'erro': 'Selecione ao menos 2 produtos.'}), 400
+    try:
+        produtos_svc.merge_produtos(
+            db, Produto, ItemGasto, ListaCompras,
+            int(target_id), [int(s) for s in source_ids],
+        )
+        return jsonify({'sucesso': True})
+    except ValueError as e:
+        return jsonify({'sucesso': False, 'erro': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'sucesso': False, 'erro': str(e)}), 500
+
+
+@app.route('/categorias/produto/deletar/<int:id>', methods=['POST'])
+def deletar_produto_catalogo(id):
+    from theoos import produtos as produtos_svc
+    try:
+        produtos_svc.delete_produto_catalog(db, Produto, ItemGasto, id)
+        return jsonify({'sucesso': True})
+    except ValueError as e:
+        return jsonify({'sucesso': False, 'erro': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'sucesso': False, 'erro': str(e)}), 500
+
+
 def _produto_sugestao_dict(nome, marca, unidade, categoria, ultimo_preco):
     return {
         'nome': nome,
@@ -1562,9 +1635,33 @@ def sugerir_produtos():
 
 
 def _buscar_sugestoes_produto(q, limit=8):
-    """Busca produtos no histórico de gastos e na lista de compras."""
+    """Busca produtos no catálogo, histórico de gastos e lista de compras."""
     seen = set()
     results = []
+
+    catalogo = Produto.query.filter(
+        db.or_(
+            Produto.nome.ilike(f'%{q}%'),
+            Produto.aliases.ilike(f'%{q}%'),
+        )
+    ).order_by(Produto.nome).limit(limit * 2).all()
+
+    for p in catalogo:
+        key = (p.nome.lower(), (p.marca or '').strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        ultimo = (
+            ItemGasto.query.filter_by(produto_id=p.id)
+            .order_by(ItemGasto.id.desc())
+            .first()
+        )
+        preco = ultimo.valor_unitario if ultimo else None
+        results.append(_produto_sugestao_dict(
+            p.nome, p.marca, p.unidade, p.categoria, preco
+        ))
+        if len(results) >= limit:
+            return results
 
     gastos = ItemGasto.query.filter(
         db.or_(
@@ -1649,6 +1746,10 @@ def upload_nota():
     pendentes = ListaCompras.query.filter_by(status='pendente').all()
     lista_str = ", ".join(f"[ID:{p.id} {p.item}]" for p in pendentes) or "Lista vazia."
 
+    from theoos import produtos as produtos_svc
+    catalog = produtos_svc.build_catalog(db, ItemGasto, Produto)
+    catalog_block = produtos_svc.catalog_prompt_block(catalog)
+
     # Detecta as categorias dinâmicas do banco
     try:
         cats_db = Categoria.query.all()
@@ -1672,7 +1773,7 @@ Para cada item, além de extrair o nome original/bruto impresso no cupom (no cam
 1. Um nome simplificado, limpo e padronizado em "nome_normalizado" (ex: se "LEITE UHT INT LIDER 1L", o nome_normalizado será "Leite Integral"; se "LJA PERA", será "Laranja Pera"; se "ARROZ T1 PRATO FINO 5KG", será "Arroz Branco").
 2. A marca do produto no campo "marca" (ex: "Lider", "Prato Fino", "Nestlé"). Se não houver marca identificável, retorne null.
 3. A unidade de medida do produto no campo "unidade" (use uma destas siglas: "un", "kg", "g", "l", "ml", "Cx"). Se não for evidente, use "un".
-
+{catalog_block.strip()}
 Retorne SOMENTE JSON puro:
 {{"mercado":"Nome","data":"DD/MM/AAAA","total_nota":0.00,"itens":[{{"nome":"NOME ORIGINAL","nome_normalizado":"Nome Limpo","marca":"Marca ou null","quantidade":1.0,"valor_unitario":0.00,"valor_total":0.00,"categoria":"Supermercado","unidade":"un"}}],"ids_comprados":[]}}
 """
@@ -1693,6 +1794,8 @@ Retorne SOMENTE JSON puro:
     total       = float(dados.get('total_nota', 0.0))
     itens_lista = dados.get('itens', [])
     ids_riscados = dados.get('ids_comprados', [])
+
+    produtos_svc.normalize_itens_ocr(db, ItemGasto, itens_lista, Produto)
 
     # Salva a foto fisicamente no disco e registra o caminho
     filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_cupom_{foto_hash[:8]}.{ext}")
@@ -1738,6 +1841,7 @@ Retorne SOMENTE JSON puro:
         cat = item.get('categoria', 'Outros')
         db.session.add(ItemGasto(
             financa_id=novo_gasto.id,
+            produto_id=item.get('produto_id'),
             nome=item.get('nome', 'Desconhecido'),
             nome_normalizado=item.get('nome_normalizado'),
             marca=item.get('marca'),

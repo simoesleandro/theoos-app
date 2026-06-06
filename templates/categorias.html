@@ -109,38 +109,45 @@
   {% endif %}
 </div>
 
-<!-- Produtos Registrados Panel -->
+<!-- Catálogo de Produtos -->
 <div class="panel reveal" style="margin-top: 20px;">
   <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px; flex-wrap: wrap;">
-    <div style="display: flex; align-items: baseline; gap: 12px;">
-      <div class="panel-title">Produtos Registrados</div>
-      <span style="font-size: 12px; color: var(--muted);">{{ produtos | length }} produto{% if produtos | length != 1 %}s{% endif %} lançado{% if produtos | length != 1 %}s{% endif %}</span>
+    <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+      <div class="panel-title">Catálogo de Produtos</div>
+      <span style="font-size: 12px; color: var(--muted);">{{ produtos | length }} produto{% if produtos | length != 1 %}s{% endif %} único{% if produtos | length != 1 %}s{% endif %}</span>
     </div>
-    <input type="text" id="busca-produtos" class="form-input" placeholder="🔍 Filtrar produtos..." onkeyup="filtrarProdutos()" style="margin-bottom: 0; max-width: 240px; height: 34px; padding: 4px 8px; font-size: 13px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+      <input type="text" id="busca-produtos" class="form-input" placeholder="🔍 Filtrar produtos..." onkeyup="filtrarProdutos()" style="margin-bottom: 0; max-width: 220px; height: 34px; padding: 4px 8px; font-size: 13px;">
+      <button type="button" id="btn-unificar" class="btn btn-outline btn-sm" onclick="unificarProdutos()" disabled title="Selecione 2 ou mais produtos">🔗 Unificar selecionados</button>
+    </div>
   </div>
+  <p class="form-hint" style="padding: 0 16px 12px; margin: 0; border-bottom: 1px solid var(--border);">
+    Produtos canônicos usados pelo OCR e pelo detetive de preços. Marque duplicatas e unifique — os lançamentos e a lista de compras são atualizados automaticamente.
+  </p>
   <div class="panel-body" style="padding: 0;">
     {% if produtos %}
       <div style="overflow-x: auto;">
-        <table class="data-table" style="min-width: 1000px;">
+        <table class="data-table" style="min-width: 960px;">
           <thead>
             <tr>
-              <th style="min-width: 180px;">Descrição</th>
-              <th style="min-width: 160px;">Nome Fácil</th>
-              <th style="width: 140px;">Marca</th>
-              <th style="width: 150px;">Categoria</th>
-              <th style="width: 100px;">Und.</th>
-              <th style="width: 90px; text-align: right;">Quantidade</th>
-              <th style="width: 155px; text-align: right;">Ações</th>
+              <th style="width: 36px;"></th>
+              <th style="min-width: 160px;">Nome</th>
+              <th style="width: 120px;">Marca</th>
+              <th style="width: 140px;">Categoria</th>
+              <th style="width: 90px;">Und.</th>
+              <th style="min-width: 200px;">Aliases (cupom)</th>
+              <th style="width: 70px; text-align: center;">Lanç.</th>
+              <th style="width: 140px; text-align: right;">Ações</th>
             </tr>
           </thead>
           <tbody>
             {% for item in produtos %}
-            <tr id="prod-row-{{ item.id }}">
-              <td>
-                <input type="text" class="form-input edit-prod-nome" value="{{ item.nome }}" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;" required>
+            <tr id="prod-row-{{ item.id }}" data-nome="{{ item.nome | e }}">
+              <td style="text-align: center;">
+                <input type="checkbox" class="prod-merge-cb" value="{{ item.id }}" data-nome="{{ item.nome | e }}" onchange="atualizarBtnUnificar()" aria-label="Selecionar {{ item.nome }}">
               </td>
               <td>
-                <input type="text" class="form-input edit-prod-nome-normalizado" value="{{ item.nome_normalizado or '' }}" placeholder="Nome fácil (Ex: Leite)" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;">
+                <input type="text" class="form-input edit-prod-nome" value="{{ item.nome }}" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;" required>
               </td>
               <td>
                 <input type="text" class="form-input edit-prod-marca" value="{{ item.marca or '' }}" placeholder="Marca" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px;">
@@ -154,21 +161,22 @@
               </td>
               <td>
                 <select class="form-select edit-prod-unidade" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13px;">
-                  <option value="un" {% if item.unidade == 'un' %}selected{% endif %}>Un (unidade)</option>
-                  <option value="kg" {% if item.unidade == 'kg' %}selected{% endif %}>Kg (kilograma)</option>
-                  <option value="Cx" {% if item.unidade == 'Cx' or item.unidade == 'cx' %}selected{% endif %}>Cx (caixa)</option>
-                  <option value="ml" {% if item.unidade == 'ml' %}selected{% endif %}>Ml (mililitro)</option>
-                  <option value="l" {% if item.unidade == 'l' or item.unidade == 'L' %}selected{% endif %}>L (litro)</option>
-                  <option value="g" {% if item.unidade == 'g' %}selected{% endif %}>g (grama)</option>
+                  <option value="un" {% if item.unidade == 'un' %}selected{% endif %}>un</option>
+                  <option value="kg" {% if item.unidade == 'kg' %}selected{% endif %}>kg</option>
+                  <option value="Cx" {% if item.unidade == 'Cx' or item.unidade == 'cx' %}selected{% endif %}>Cx</option>
+                  <option value="ml" {% if item.unidade == 'ml' %}selected{% endif %}>ml</option>
+                  <option value="l" {% if item.unidade == 'l' or item.unidade == 'L' %}selected{% endif %}>l</option>
+                  <option value="g" {% if item.unidade == 'g' %}selected{% endif %}>g</option>
                 </select>
               </td>
               <td>
-                <input type="number" step="0.1" min="0.1" class="form-input edit-prod-quantidade font-roboto" value="{{ item.quantidade }}" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13.5px; text-align: right; width: 70px;" required>
+                <input type="text" class="form-input edit-prod-aliases" value="{{ item.alias_list | join(', ') }}" placeholder="Nomes do cupom, separados por vírgula" style="margin-bottom:0; height:36px; padding: 4px 8px; font-size:13px;">
               </td>
+              <td style="text-align: center; font-size: 13px; color: var(--muted);">{{ item.lancamentos_count }}</td>
               <td style="text-align: right;">
                 <div style="display: flex; justify-content: flex-end; gap: 6px;">
-                  <button type="button" onclick="salvarProduto({{ item.id }})" class="btn btn-sage btn-sm" style="padding: 6px 12px; height: 32px;" title="Salvar alterações">💾 Salvar</button>
-                  <button type="button" onclick="deletarProduto({{ item.id }})" class="btn btn-terra btn-sm" style="padding: 6px 12px; height: 32px;" title="Excluir produto">🗑 Excluir</button>
+                  <button type="button" onclick="salvarProduto({{ item.id }})" class="btn btn-sage btn-sm" style="padding: 6px 10px; height: 32px;" title="Salvar">💾</button>
+                  <button type="button" onclick="deletarProduto({{ item.id }})" class="btn btn-terra btn-sm" style="padding: 6px 10px; height: 32px;" title="Excluir do catálogo">🗑</button>
                 </div>
               </td>
             </tr>
@@ -178,7 +186,7 @@
       </div>
     {% else %}
       <div class="empty-state" style="padding: 24px;">
-        <p>Nenhum produto cadastrado no histórico ainda.</p>
+        <p>Nenhum produto no catálogo ainda. Lance cupons via OCR para popular automaticamente.</p>
       </div>
     {% endif %}
   </div>
@@ -264,51 +272,71 @@ function filtrarProdutos() {
   const query = document.getElementById('busca-produtos').value.toLowerCase();
   const rows = document.querySelectorAll('tr[id^="prod-row-"]');
   rows.forEach(row => {
-    const text = row.textContent.toLowerCase();
-    
-    // Inclui os valores atuais dos inputs para busca
     const nome = row.querySelector('.edit-prod-nome').value.toLowerCase();
-    const nomeNorm = row.querySelector('.edit-prod-nome-normalizado').value.toLowerCase();
     const marca = row.querySelector('.edit-prod-marca').value.toLowerCase();
+    const aliases = row.querySelector('.edit-prod-aliases').value.toLowerCase();
     const cat = row.querySelector('.edit-prod-categoria').value.toLowerCase();
-    
-    const combinedText = text + " " + nome + " " + nomeNorm + " " + marca + " " + cat;
-    
+    const combinedText = nome + " " + marca + " " + aliases + " " + cat;
     row.style.display = combinedText.includes(query) ? '' : 'none';
   });
+}
+
+function atualizarBtnUnificar() {
+  const checked = document.querySelectorAll('.prod-merge-cb:checked');
+  const btn = document.getElementById('btn-unificar');
+  if (btn) btn.disabled = checked.length < 2;
+}
+
+async function unificarProdutos() {
+  const checked = [...document.querySelectorAll('.prod-merge-cb:checked')];
+  if (checked.length < 2) {
+    alert('Selecione pelo menos 2 produtos para unificar.');
+    return;
+  }
+  const ids = checked.map(c => c.value);
+  const nomes = checked.map(c => c.dataset.nome);
+  const targetId = ids[0];
+  const sourceIds = ids.slice(1);
+  const msg = `Unificar ${ids.length} produtos em "${nomes[0]}"?\n\nSerão mesclados:\n• ${nomes.join('\n• ')}\n\nLançamentos e lista de compras serão atualizados.`;
+  if (!confirm(msg)) return;
+
+  try {
+    const res = await fetch('/categorias/produto/fusao', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_id: targetId, source_ids: sourceIds }),
+    });
+    const data = await res.json();
+    if (data.sucesso) {
+      window.location.reload();
+    } else {
+      alert(data.erro || 'Erro ao unificar produtos.');
+    }
+  } catch (err) {
+    alert('Erro de conexão ao unificar produtos.');
+  }
 }
 
 async function salvarProduto(itemId) {
   const row = document.getElementById(`prod-row-${itemId}`);
   if (!row) return;
-  const inputNome = row.querySelector('.edit-prod-nome');
-  const inputNomeNormalizado = row.querySelector('.edit-prod-nome-normalizado');
-  const inputMarca = row.querySelector('.edit-prod-marca');
-  const selectCat = row.querySelector('.edit-prod-categoria');
-  const selectUnidade = row.querySelector('.edit-prod-unidade');
-  const inputQuantidade = row.querySelector('.edit-prod-quantidade');
-  
   const formData = new FormData();
-  formData.append('nome', inputNome.value);
-  formData.append('nome_normalizado', inputNomeNormalizado.value);
-  formData.append('marca', inputMarca.value);
-  formData.append('categoria', selectCat.value);
-  formData.append('unidade', selectUnidade.value);
-  formData.append('quantidade', inputQuantidade.value);
-  
+  formData.append('nome', row.querySelector('.edit-prod-nome').value);
+  formData.append('marca', row.querySelector('.edit-prod-marca').value);
+  formData.append('categoria', row.querySelector('.edit-prod-categoria').value);
+  formData.append('unidade', row.querySelector('.edit-prod-unidade').value);
+  formData.append('aliases', row.querySelector('.edit-prod-aliases').value);
+
   try {
-    const res = await fetch(`/upload_nota/item/editar/${itemId}`, {
+    const res = await fetch(`/categorias/produto/salvar/${itemId}`, {
       method: 'POST',
       body: formData
     });
     const data = await res.json();
     if (data.sucesso) {
-      // Visual feedback: brief green background highlight
       row.style.transition = 'background-color 0.3s ease';
       row.style.backgroundColor = 'rgba(120, 179, 141, 0.15)';
-      setTimeout(() => {
-        row.style.backgroundColor = 'transparent';
-      }, 1500);
+      setTimeout(() => { row.style.backgroundColor = 'transparent'; }, 1500);
     } else {
       alert(data.erro || 'Erro ao salvar o produto.');
     }
@@ -318,22 +346,17 @@ async function salvarProduto(itemId) {
 }
 
 async function deletarProduto(itemId) {
-  if (!confirm('Deseja realmente excluir este produto? O valor total do cupom associado será recalculado.')) {
+  if (!confirm('Excluir este produto do catálogo? Os lançamentos de cupom permanecem, mas perdem o vínculo.')) {
     return;
   }
   try {
-    const res = await fetch(`/upload_nota/item/deletar/${itemId}`, {
+    const res = await fetch(`/categorias/produto/deletar/${itemId}`, {
       method: 'POST'
     });
     const data = await res.json();
     if (data.sucesso) {
       const row = document.getElementById(`prod-row-${itemId}`);
-      if (row) {
-        row.remove();
-      }
-      if (data.reload) {
-        window.location.reload();
-      }
+      if (row) row.remove();
     } else {
       alert(data.erro || 'Erro ao excluir o produto.');
     }

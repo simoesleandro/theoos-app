@@ -1,7 +1,7 @@
 """Migrações incrementais SQLite (schema version em app_setting)."""
 from sqlalchemy import text
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 MIGRATIONS = [
     # v1 — auditoria, config, recorrência, criado_por
@@ -45,6 +45,20 @@ MIGRATIONS = [
     # v4 — riscado no Telegram (sem dar baixa)
     """
     ALTER TABLE lista_compras ADD COLUMN marcado INTEGER NOT NULL DEFAULT 0;
+    """,
+    # v5 — catálogo canônico de produtos
+    """
+    CREATE TABLE IF NOT EXISTS produto (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        marca TEXT,
+        unidade TEXT NOT NULL DEFAULT 'un',
+        categoria TEXT NOT NULL DEFAULT 'Outros',
+        aliases TEXT,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_produto_nome ON produto(nome);
+    ALTER TABLE item_gasto ADD COLUMN produto_id INTEGER REFERENCES produto(id);
     """,
 ]
 
@@ -114,6 +128,27 @@ def run_migrations(db):
                     if not s:
                         continue
                     if "lista_compras" in s and _column_exists(conn, "lista_compras", "marcado"):
+                        continue
+                    try:
+                        conn.execute(text(s))
+                        conn.commit()
+                    except Exception:
+                        pass
+            elif step == 5:
+                for stmt in MIGRATIONS[4].strip().split(";"):
+                    s = stmt.strip()
+                    if not s:
+                        continue
+                    if s.upper().startswith("CREATE TABLE") and _table_exists(conn, "produto"):
+                        continue
+                    if "item_gasto" in s and _column_exists(conn, "item_gasto", "produto_id"):
+                        continue
+                    if s.upper().startswith("CREATE INDEX") and _table_exists(conn, "produto"):
+                        try:
+                            conn.execute(text(s))
+                            conn.commit()
+                        except Exception:
+                            pass
                         continue
                     try:
                         conn.execute(text(s))

@@ -96,6 +96,31 @@ Chronological record of major work for humans and AI. Shorter agent summary: [AG
 #### Env
 - `THEOOS_WEB_URL` no `.env` — URL LAN para botão Telegram “Abrir no app” (ex. `http://192.168.x.x:5000`).
 
+### v2.2 — Catálogo de produtos, Telegram pro, lembretes (June 2026)
+
+#### Catálogo de produtos
+| Item | Details |
+|------|---------|
+| DB | Schema **v5**: `Produto` + `ItemGasto.produto_id` |
+| Module | `theoos/produtos.py` — matching OCR, seed histórico, merge |
+| Web | `/categorias` — catálogo + fusão manual |
+| OCR | Web upload + bot foto — normalização pós-Gemini |
+
+#### Telegram formatado + menu
+| Item | Details |
+|------|---------|
+| Module | `theoos/telegram_format.py` — cards HTML, blockquote expandível |
+| Commands | `/start`, `/ajuda`, `/help` — 10 botões inline executam ações reais |
+| Callbacks | `menu:{cmd}` — lista, semana, orçamento, relatório, lembretes, etc. |
+| Stability | Singleton socket :48721; só uma instância (`theoos-bot.exe`) |
+
+#### Lembretes
+| Item | Details |
+|------|---------|
+| Overdue | Alertas diários contas vencidas |
+| Scheduler | ≥10h, catch-up no boot, `/lembretes` manual |
+| Tests | `test_reminders.py`, `test_telegram_format.py`, `test_produtos.py` |
+
 ---
 
 ## File map (post-v2)
@@ -106,6 +131,8 @@ appfamiliar/
 ├── bot.py
 ├── theoos/
 │   ├── telegram_lista.py
+│   ├── telegram_format.py
+│   ├── produtos.py
 │   └── …
 ├── templates/
 │   ├── macros/{ui,bills}.html
@@ -137,6 +164,7 @@ See `.env.example`: `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`, `GEMINI_API_KEY`, `SEC
 ```bash
 # Dev
 python app.py
+# Não rodar bot.py manualmente se theoos-bot.exe (WinSW) estiver ativo
 python bot.py
 
 # Tests

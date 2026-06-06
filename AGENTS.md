@@ -3,7 +3,7 @@
 Persistent context for AI assistants and developers working on this repo.
 
 **Repo:** https://github.com/simoesleandro/theoos-app.git  
-**Last major update:** June 2026 — lista Telegram, detetive de preços, PDF mensal v2.
+**Last major update:** June 2026 — catálogo de produtos, Telegram formatado, `/ajuda` com botões.
 
 ---
 
@@ -30,6 +30,8 @@ theoos/             # Service modules (imported by app + bot)
   reconcile.py      # Bank CSV import
   pdf_report.py     # Monthly PDF (fpdf2, ThéoOS layout)
   telegram_lista.py # Telegram shopping list HTML + inline keyboard
+  telegram_format.py # Telegram HTML cards, /start /ajuda menus, alertas
+  produtos.py       # Product catalog, OCR matching, merge
   routes.py         # login, config, backup, /api/*, /exportar/*
 templates/
   base.html         # Shell, Chart.js, PWA, notifications JS
@@ -114,6 +116,29 @@ theoos-web.xml / theoos-bot.xml
 - WinSW: reinstalar de `%OneDrive%\Desktop\appfamiliar` se serviço apontar path antigo.
 - Removida rota `/lista/salvar_tudo` (cache do browser pode dar 404 até hard refresh).
 
+### Phase 5 — Catálogo, Telegram pro, lembretes (June 2026)
+
+#### Catálogo de produtos (anti-duplicação OCR)
+- **Schema v5:** tabela `Produto`, coluna `ItemGasto.produto_id`.
+- **`theoos/produtos.py`:** matcher pós-OCR (similaridade), catálogo implícito, `normalize_itens_ocr()`, `seed_catalog_from_history()`, `merge_produtos()`.
+- **Web `/categorias`:** catálogo agrupado + fusão manual de duplicatas; rotas salvar/fusão/deletar produto.
+- **OCR web + Telegram:** prompt Gemini enriquecido com produtos conhecidos; matching após extração.
+- Testes: `tests/test_produtos.py`.
+
+#### Telegram — formatação e menu interativo
+- **`theoos/telegram_format.py`:** HTML + blockquote expandível (cards) para todas as mensagens automáticas.
+- **`/start` e `/ajuda`:** menu com **10 botões inline** (`menu:{cmd}`) que **executam** a ação real (lista, semana, orçamento, relatório, lembretes, etc.).
+- **`/ajuda` e `/help`:** guia completo; cupom/texto mostram instrução; comprar ativa modo adicionar item.
+- Callbacks: `menu:*` (compat `help_cmd:*`); lista mantém `lista_*`.
+- **Singleton:** lock socket porta 48721 em `bot.py` — evita erro 409 (duas instâncias polling).
+- Testes: `tests/test_telegram_format.py`.
+
+#### Lembretes de contas
+- Alertas diários de **contas vencidas** + vencimentos próximos (`reminder_days` configurável).
+- Scheduler robusto (≥10h, 1×/dia) + catch-up ao reiniciar bot.
+- **`/lembretes`:** teste manual; API `/api/vencimentos` inclui vencidas.
+- Testes: `tests/test_reminders.py`.
+
 ---
 
 ## Conventions for future changes
@@ -137,6 +162,8 @@ theoos-web.xml / theoos-bot.xml
 | Health | `/health` |
 | PDF | `/exportar/pdf` |
 | Lista Telegram | `/lista` no bot → `theoos/telegram_lista.py` |
+| Menu Telegram | `/start`, `/ajuda` → `theoos/telegram_format.py` (botões `menu:*`) |
+| Catálogo produtos | `/categorias` → `theoos/produtos.py` |
 | Autocomplete lista | `/api/sugerir_produtos?q=` |
 | Detetive preços | `/pesquisa` → `insights.pesquisa_resultados` |
 | Notifications API | `/api/vencimentos` |
@@ -152,6 +179,8 @@ theoos-web.xml / theoos-bot.xml
 - Detetive: nomes OCR distintos no mesmo cupom (ex. “Requeijão” vs “Requeijão Cremoso”) ficam em linhas separadas; mesma linha lógica agrupa por nome exato.
 - Telegram botão “Abrir no app” precisa `THEOOS_WEB_URL` com IP LAN (não `localhost`).
 - OneDrive path for project — WinSW `workingdirectory` is `%BASE%` (project root).
+- **Não** rodar `python bot.py` manualmente com WinSW ativo — causa conflito 409 e respostas antigas.
+- Bot Telegram: serviço correto é `theoos-bot.exe` (não `theoss-bot.exe`).
 
 ---
 

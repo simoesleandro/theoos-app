@@ -214,22 +214,36 @@ def register(app, db, models):
 
     @app.route("/api/vencimentos")
     def api_vencimentos():
-        from theoos.recurring import contas_due_for_reminder
+        from theoos.recurring import (
+            contas_due_for_reminder,
+            contas_overdue,
+            parse_reminder_days,
+            receber_due_for_reminder,
+        )
 
         hoje = date.today()
         enabled = get_setting(db, "web_notify", "1") == "1"
-        days_str = get_setting(db, "reminder_days", "0,1,2,3,7") or "0,1,2,3,7"
+        days_str = get_setting(db, "reminder_days", "0,1,2,7") or "0,1,2,7"
         contas_out = []
         receber_out = []
         seen_c = set()
         seen_r = set()
 
-        for part in days_str.split(","):
-            part = part.strip()
-            if not part.isdigit():
-                continue
-            dias = int(part)
-            alvo = hoje + timedelta(days=dias)
+        for c in contas_overdue(db, Conta):
+            seen_c.add(c.id)
+            dias_atraso = (hoje - c.data_vencimento).days
+            contas_out.append(
+                {
+                    "id": c.id,
+                    "nome": c.nome,
+                    "valor": c.valor,
+                    "vencimento": c.data_vencimento.isoformat(),
+                    "dias": -dias_atraso,
+                    "quando": f"vencida há {dias_atraso} dia(s)",
+                }
+            )
+
+        for dias in parse_reminder_days(days_str):
             for c in contas_due_for_reminder(db, Conta, dias):
                 if c.id in seen_c:
                     continue
@@ -244,14 +258,7 @@ def register(app, db, models):
                         "quando": "hoje" if dias == 0 else f"em {dias} dia(s)",
                     }
                 )
-            for r in (
-                ContaReceber.query.filter(
-                    ContaReceber.status == "pendente",
-                    ContaReceber.data_esperada == alvo,
-                )
-                .order_by(ContaReceber.data_esperada)
-                .all()
-            ):
+            for r in receber_due_for_reminder(db, ContaReceber, dias):
                 if r.id in seen_r:
                     continue
                 seen_r.add(r.id)

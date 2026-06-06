@@ -16,8 +16,9 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber, Orcamento, Categoria, datetime as app_datetime, timedelta as app_timedelta
+from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber, Orcamento, Categoria, Produto, datetime as app_datetime, timedelta as app_timedelta
 from theoos import telegram_lista
+from theoos import telegram_format
 from theoos.audit import log_action
 
 load_dotenv()
@@ -35,32 +36,82 @@ CATEGORIAS = "'Hortifruti', 'Supermercado', 'Farmácia', 'Suplemento Alimentar',
 _user_states = {}
 
 
+def _html_send(chat_id, text, **kwargs):
+    kwargs.setdefault("parse_mode", "HTML")
+    return bot.send_message(chat_id, text, **kwargs)
+
+
+def _html_reply(message, text, **kwargs):
+    kwargs.setdefault("parse_mode", "HTML")
+    return bot.reply_to(message, text, **kwargs)
+
+
 # ── ALERTAS ───────────────────────────────────────────────────────────────────
+
+REMINDER_HOUR = 10
+DEFAULT_REMINDER_DAYS = "0,1,2,7"
+
+
+def _load_reminder_last_sent():
+    from theoos.db_migrate import get_setting
+
+    with app.app_context():
+        raw = get_setting(db, "reminder_last_sent", "")
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _save_reminder_last_sent(d):
+    from theoos.db_migrate import set_setting
+
+    with app.app_context():
+        set_setting(db, "reminder_last_sent", d.isoformat())
+
+
+def _daily_reminder_due(ultimo_diario, agora):
+    """True se ainda não enviou hoje e já passou das REMINDER_HOUR horas."""
+    hoje = agora.date()
+    if ultimo_diario == hoje:
+        return False
+    return agora.hour >= REMINDER_HOUR
+
 
 def alertar_contas_vencendo():
     from theoos.db_migrate import get_setting
     from theoos import recurring
 
+    if not TELEGRAM_CHAT_ID:
+        print("Alerta contas: TELEGRAM_CHAT_ID não configurado.")
+        return False
+
     with app.app_context():
-        days_str = get_setting(db, "reminder_days", "2") or "2"
+        days_str = get_setting(db, "reminder_days", DEFAULT_REMINDER_DAYS) or DEFAULT_REMINDER_DAYS
+        days_list = recurring.parse_reminder_days(days_str, DEFAULT_REMINDER_DAYS)
+        hoje = date.today()
         enviado = False
-        for part in days_str.split(","):
-            part = part.strip()
-            if not part.isdigit():
-                continue
-            dias = int(part)
-            contas = recurring.contas_due_for_reminder(db, Conta, dias)
-            if not contas:
-                continue
-            alvo = date.today() + app_timedelta(days=dias)
-            total = sum(c.valor for c in contas)
-            when = "hoje" if dias == 0 else f"em {dias} dia(s)"
-            msg = f"⏳ *ThéoOS — Contas {when}* ({alvo.strftime('%d/%m/%Y')})\n\n"
-            for c in contas:
-                msg += f"• {c.nome} ({c.categoria}): R$ {c.valor:.2f}\n"
-            msg += f"\n💰 *Total:* R$ {total:.2f}"
+
+        vencidas = recurring.contas_overdue(db, Conta)
+        if vencidas:
+            msg = telegram_format.format_contas_vencidas_html(vencidas, hoje=hoje)
             try:
-                bot.send_message(TELEGRAM_CHAT_ID, msg, parse_mode="Markdown")
+                _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
+                enviado = True
+            except Exception as e:
+                print(f"Erro alerta contas vencidas: {e}")
+
+        for dias in days_list:
+            contas = recurring.contas_due_for_reminder(db, Conta, dias)
+            receber = recurring.receber_due_for_reminder(db, ContaReceber, dias)
+            if not contas and not receber:
+                continue
+            alvo = hoje + app_timedelta(days=dias)
+            msg = telegram_format.format_lembrete_contas_html(contas, receber, dias, alvo)
+            try:
+                _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
                 enviado = True
             except Exception as e:
                 print(f"Erro alerta contas: {e}")
@@ -74,15 +125,9 @@ def alertar_variacao_precos():
         alertas = insights.price_spike_alerts(db, ItemGasto, Financas, min_pct=12.0)
         if not alertas:
             return
-        msg = "📈 *ThéoOS — Variação de preços*\n\n"
-        for a in alertas[:5]:
-            sinal = "↑" if a["subiu"] else "↓"
-            msg += (
-                f"• {a['produto']}: {sinal} {abs(a['pct']):.0f}% "
-                f"(R$ {a['preco_anterior']:.2f} → R$ {a['preco_recente']:.2f})\n"
-            )
+        msg = telegram_format.format_variacao_precos_html(alertas)
         try:
-            bot.send_message(TELEGRAM_CHAT_ID, msg, parse_mode="Markdown")
+            _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
         except Exception as e:
             print(f"Erro alerta preços: {e}")
 
@@ -91,6 +136,7 @@ def verificar_orcamentos(categorias):
     """Envia alerta no Telegram se alguma categoria atingiu ≥80% do orçamento mensal."""
     hoje = date.today()
     primeiro_dia = date(hoje.year, hoje.month, 1)
+    alertas = []
     for cat in set(categorias):
         with app.app_context():
             orc = Orcamento.query.filter_by(categoria=cat).first()
@@ -102,26 +148,36 @@ def verificar_orcamentos(categorias):
                 .scalar() or 0
             pct = (gasto / orc.limite_mensal) * 100
             if pct >= 80:
-                emoji = "🚨" if pct >= 100 else "⚠️"
-                msg = (f"{emoji} *Alerta de Orçamento — {cat}*\n"
-                       f"_{pct:.0f}% usado este mês_\n"
-                       f"R$ {gasto:.2f} de R$ {orc.limite_mensal:.2f}")
-                try:
-                    bot.send_message(TELEGRAM_CHAT_ID, msg, parse_mode="Markdown")
-                except Exception as e:
-                    print(f"Erro alerta orçamento: {e}")
+                alertas.append({
+                    "categoria": cat,
+                    "pct": pct,
+                    "gasto": gasto,
+                    "limite": orc.limite_mensal,
+                })
+    if not alertas or not TELEGRAM_CHAT_ID:
+        return
+    msg = telegram_format.format_orcamentos_alertas_html(alertas)
+    try:
+        _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
+    except Exception as e:
+        print(f"Erro alerta orçamento: {e}")
+
+
+def _run_daily_alerts():
+    alertar_contas_vencendo()
+    alertar_variacao_precos()
+    _save_reminder_last_sent(date.today())
 
 
 def _scheduler_loop():
-    ultimo_diario = None
+    ultimo_diario = _load_reminder_last_sent()
     ultimo_mes = None
     while True:
         agora = datetime.now()
         hoje = agora.date()
-        if agora.hour == 10 and agora.minute == 0 and ultimo_diario != hoje:
+        if _daily_reminder_due(ultimo_diario, agora):
             ultimo_diario = hoje
-            alertar_contas_vencendo()
-            alertar_variacao_precos()
+            _run_daily_alerts()
         if agora.day == 1 and agora.hour == 8 and ultimo_mes != (hoje.year, hoje.month):
             ultimo_mes = (hoje.year, hoje.month)
             with app.app_context():
@@ -129,10 +185,9 @@ def _scheduler_loop():
                 try:
                     n = run_monthly_generation(db, Conta, ContaReceber)
                     if n and TELEGRAM_CHAT_ID:
-                        bot.send_message(
+                        _html_send(
                             TELEGRAM_CHAT_ID,
-                            f"📅 *ThéoOS* — {n} conta(s) fixa(s) gerada(s) para o mês.",
-                            parse_mode="Markdown",
+                            telegram_format.format_recorrencia_mes_html(n),
                         )
                 except Exception as e:
                     print(f"Recorrência bot: {e}")
@@ -141,32 +196,51 @@ def _scheduler_loop():
 threading.Thread(target=_scheduler_loop, daemon=True).start()
 
 
+def _catch_up_reminders_on_start():
+    """Se o bot subir depois das 10h, envia lembretes do dia que ainda não foram."""
+    time.sleep(5)
+    ultimo = _load_reminder_last_sent()
+    if _daily_reminder_due(ultimo, datetime.now()):
+        print("ThéoOS: lembretes do dia em atraso — enviando agora...")
+        _run_daily_alerts()
+
+
+threading.Thread(target=_catch_up_reminders_on_start, daemon=True).start()
+
+
 # ── COMMANDS ──────────────────────────────────────────────────────────────────
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message,
-        "Fala! Sou o ThéoOS 🤖\n"
-        "• /comprar <item> — adiciona à lista\n"
-        "• /lista — ver itens pendentes\n"
-        "• /gasto <valor> <desc> — registra gasto manual\n"
-        "• /relatorio — resumo financeiro\n"
-        "• /semana — contas e receitas (7 dias)\n"
-        "• /orcamento — status dos limites do mês\n"
-        "Você também pode enviar *foto de cupom* ou *áudio* com itens!")
+    _html_reply(
+        message,
+        telegram_format.format_start_html(),
+        reply_markup=telegram_format.help_commands_keyboard(context="start"),
+        disable_web_page_preview=True,
+    )
+
+
+@bot.message_handler(commands=['ajuda', 'help'])
+def cmd_ajuda(message):
+    _html_reply(
+        message,
+        telegram_format.format_ajuda_html(),
+        reply_markup=telegram_format.help_commands_keyboard(context="ajuda"),
+        disable_web_page_preview=True,
+    )
 
 
 @bot.message_handler(commands=['comprar'])
 def adicionar_item(message):
     texto = message.text.replace("/comprar", "").strip()
     if not texto:
-        bot.reply_to(message, "Ex: /comprar Frango 2kg")
+        _html_reply(message, telegram_format.format_erro_html("Uso incorreto", "Ex: <code>/comprar Frango 2kg</code>"))
         return
     with app.app_context():
         autor = message.from_user.username or message.from_user.first_name or "telegram"
         db.session.add(ListaCompras(item=texto, criado_por=f"telegram:{autor}"))
         db.session.commit()
-    bot.reply_to(message, f"✅ _{texto}_ adicionado à lista!", parse_mode="Markdown")
+    _html_reply(message, telegram_format.format_comprar_ok_html(texto))
 
 
 def _enviar_lista_formatada(chat_id):
@@ -177,7 +251,7 @@ def _enviar_lista_formatada(chat_id):
             ).all()
             total = telegram_lista.calc_total_estimado(itens, ItemGasto, db) if itens else 0
         if not itens:
-            bot.send_message(chat_id, "✨ Lista vazia! Nada pendente.", parse_mode="HTML")
+            _html_send(chat_id, telegram_format.format_lista_vazia_html())
             return
         telegram_lista.send_lista_message(bot, chat_id, itens, total_estimado=total)
     except Exception as e:
@@ -200,71 +274,179 @@ def registrar_gasto(message):
         with app.app_context():
             db.session.add(Financas(valor=valor, descricao=desc))
             db.session.commit()
-        bot.reply_to(message, f"💸 Registrado: R$ {valor:.2f} — {desc}")
+        _html_reply(message, telegram_format.format_gasto_ok_html(valor, desc))
     except Exception:
-        bot.reply_to(message, "❌ Use: /gasto 10.50 Chocolate")
+        _html_reply(message, telegram_format.format_erro_html("Uso incorreto", "Ex: <code>/gasto 10.50 Chocolate</code>"))
 
 
 @bot.message_handler(commands=['semana'])
 def cmd_semana(message):
+    _enviar_semana(message.chat.id, reply_to=message.message_id)
+
+
+def _enviar_semana(chat_id, reply_to=None, edit_message_id=None):
     from theoos import insights
 
     with app.app_context():
         semana = insights.week_agenda(db, Conta, ContaReceber)
+
     if not semana["contas"] and not semana["receber"]:
-        bot.reply_to(message, "Nada a pagar ou receber nos próximos 7 dias (inclui vencidas).")
+        texto = "✨ Nada a pagar ou receber nos próximos 7 dias (inclui vencidas)."
+        if edit_message_id:
+            bot.edit_message_text(texto, chat_id, edit_message_id)
+        elif reply_to:
+            bot.send_message(chat_id, texto, reply_to_message_id=reply_to)
+        else:
+            bot.send_message(chat_id, texto)
         return
-    msg = "📅 *ThéoOS — Esta semana*\n\n"
-    if semana["contas"]:
-        msg += "*A pagar:*\n"
-        for c in semana["contas"][:8]:
-            msg += f"• {c.nome}: R$ {c.valor:.2f} — {c.data_vencimento.strftime('%d/%m')}\n"
-        if len(semana["contas"]) > 8:
-            msg += f"_+{len(semana['contas']) - 8} conta(s)_\n"
-        msg += f"💸 Total: R$ {semana['total_pagar']:.2f}\n\n"
-    if semana["receber"]:
-        msg += "*A receber:*\n"
-        for r in semana["receber"][:8]:
-            msg += f"• {r.nome}: R$ {r.valor:.2f} — {r.data_esperada.strftime('%d/%m')}\n"
-        if len(semana["receber"]) > 8:
-            msg += f"_+{len(semana['receber']) - 8} receita(s)_\n"
-        msg += f"💰 Total: R$ {semana['total_receber']:.2f}"
-    bot.reply_to(message, msg, parse_mode="Markdown")
+
+    msg = telegram_format.format_semana_html(semana)
+    markup = telegram_format.semana_keyboard()
+    if len(msg) > 4000:
+        msg = msg[:3900] + "\n\n<i>(agenda truncada)</i>"
+
+    kwargs = dict(parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
+    if edit_message_id:
+        bot.edit_message_text(msg, chat_id, edit_message_id, **kwargs)
+    elif reply_to:
+        bot.send_message(chat_id, msg, reply_to_message_id=reply_to, **kwargs)
+    else:
+        bot.send_message(chat_id, msg, **kwargs)
 
 
-@bot.message_handler(commands=['orcamento'])
-def cmd_orcamento(message):
+@bot.callback_query_handler(func=lambda c: c.data == "semana_refresh")
+def callback_semana_refresh(call):
+    bot.answer_callback_query(call.id, "Atualizando agenda…")
+    _enviar_semana(call.message.chat.id, edit_message_id=call.message.message_id)
+
+
+def _enviar_orcamento(chat_id, reply_to=None):
     from theoos import insights
 
     with app.app_context():
         status = insights.budget_status(db, Orcamento, ItemGasto, Financas)
     if not status:
-        bot.reply_to(message, "Nenhum orçamento definido. Configure em /config no painel web.")
+        msg = telegram_format.format_info_html(
+            "📊 <b>ThéoOS</b> · Orçamento",
+            "Nenhum limite definido.\n\nConfigure em <b>/config</b> no painel web.",
+        )
+        _html_send(chat_id, msg, reply_to_message_id=reply_to)
         return
-    msg = "📊 *ThéoOS — Orçamento do mês*\n\n"
-    for o in status[:10]:
-        emoji = "🚨" if o["pct"] >= 100 else ("⚠️" if o["alerta"] else "✅")
-        msg += f"{emoji} *{o['categoria']}*: {o['pct']:.0f}% — R$ {o['gasto']:.2f} / R$ {o['limite']:.2f}\n"
-        if o.get("meta_economia"):
-            economia = max(o["limite"] - o["gasto"], 0)
-            msg += f"   _Meta economia: R$ {economia:.2f} de R$ {o['meta_economia']:.2f}_\n"
-    bot.reply_to(message, msg, parse_mode="Markdown")
+    msg = telegram_format.format_orcamento_html(status)
+    kwargs = dict(
+        parse_mode="HTML",
+        reply_markup=telegram_format.orcamento_keyboard(),
+        disable_web_page_preview=True,
+    )
+    if reply_to:
+        bot.send_message(chat_id, msg, reply_to_message_id=reply_to, **kwargs)
+    else:
+        bot.send_message(chat_id, msg, **kwargs)
+
+
+def _enviar_relatorio(chat_id, reply_to=None):
+    with app.app_context():
+        total = db.session.query(db.func.sum(Financas.valor)).scalar() or 0
+        ultimos = Financas.query.order_by(Financas.data.desc()).limit(5).all()
+    msg = telegram_format.format_relatorio_html(total, ultimos)
+    _html_send(chat_id, msg, reply_to_message_id=reply_to)
+
+
+def _enviar_lembretes(chat_id, reply_to=None):
+    if alertar_contas_vencendo():
+        msg = telegram_format.format_lembretes_ok_html()
+    else:
+        msg = telegram_format.format_lembretes_vazio_html()
+    _html_send(chat_id, msg, reply_to_message_id=reply_to)
+
+
+def _executar_menu_acao(chat_id, cmd_key):
+    """Executa a ação real de cada botão do menu /start e /ajuda."""
+    if cmd_key == "lista":
+        _enviar_lista_formatada(chat_id)
+    elif cmd_key == "semana":
+        _enviar_semana(chat_id)
+    elif cmd_key == "orcamento":
+        _enviar_orcamento(chat_id)
+    elif cmd_key == "relatorio":
+        _enviar_relatorio(chat_id)
+    elif cmd_key == "lembretes":
+        _enviar_lembretes(chat_id)
+    elif cmd_key == "comprar":
+        _user_states[chat_id] = "adding_item"
+        _html_send(
+            chat_id,
+            telegram_format.format_info_html(
+                "➕ <b>Adicionar à lista</b>",
+                "Digite o produto (ex: <i>Leite 2 un</i> ou <i>Frango 1 kg</i>).\n\n"
+                "Ou use: <code>/comprar Frango 2kg</code>",
+            ),
+        )
+    elif cmd_key == "gasto":
+        _html_send(
+            chat_id,
+            telegram_format.format_info_html(
+                "💸 <b>Gasto manual</b>",
+                "Registre um gasto avulso:\n"
+                "<code>/gasto 10.50 Chocolate</code>\n"
+                "<code>/gasto 45.00 Uber</code>",
+            ),
+        )
+    elif cmd_key == "cupom":
+        _html_send(chat_id, telegram_format.format_help_detail_html("cupom"))
+    elif cmd_key == "texto":
+        _html_send(chat_id, telegram_format.format_help_detail_html("texto"))
+    elif cmd_key == "ajuda":
+        _html_send(
+            chat_id,
+            telegram_format.format_ajuda_html(),
+            reply_markup=telegram_format.help_commands_keyboard(),
+            disable_web_page_preview=True,
+        )
+    else:
+        _html_send(chat_id, telegram_format.format_erro_html("Comando desconhecido"))
+
+
+@bot.callback_query_handler(func=lambda c: c.data and (c.data.startswith("menu:") or c.data.startswith("help_cmd:")))
+def callback_menu(call):
+    try:
+        chat_id = call.message.chat.id
+        data = call.data
+        if data.startswith("help_cmd:"):
+            parts = data.split(":", 2)
+            cmd_key = parts[1] if len(parts) > 1 else ""
+        else:
+            cmd_key = data.split(":", 1)[1]
+
+        info = telegram_format.COMMAND_HELP.get(cmd_key)
+        toast = info["button"] if info else cmd_key
+        bot.answer_callback_query(call.id, toast)
+        _executar_menu_acao(chat_id, cmd_key)
+    except Exception as e:
+        print(f"ERRO CALLBACK MENU: {e}")
+        traceback.print_exc()
+        bot.answer_callback_query(call.id, "Erro ao processar.", show_alert=True)
+
+
+@bot.message_handler(commands=['orcamento'])
+def cmd_orcamento(message):
+    _enviar_orcamento(message.chat.id, reply_to=message.message_id)
+
+
+@bot.message_handler(commands=['lembretes'])
+def cmd_lembretes(message):
+    """Dispara lembretes manualmente (teste ou catch-up)."""
+    _enviar_lembretes(message.chat.id, reply_to=message.message_id)
 
 
 @bot.message_handler(commands=['relatorio'])
 def ver_relatorio(message):
-    with app.app_context():
-        total = db.session.query(db.func.sum(Financas.valor)).scalar() or 0
-        ultimos = Financas.query.order_by(Financas.data.desc()).limit(5).all()
-        linhas = "\n".join(f"• {g.descricao}: R$ {g.valor:.2f}" for g in ultimos)
-    bot.send_message(message.chat.id,
-        f"📊 *RELATÓRIO THÉOOS*\n\n💰 *Total acumulado:* R$ {total:.2f}\n\n*Últimas entradas:*\n{linhas}",
-        parse_mode="Markdown")
+    _enviar_relatorio(message.chat.id, reply_to=message.message_id)
 
 
 @bot.message_handler(commands=['id'])
 def descobrir_id(message):
-    bot.reply_to(message, f"Seu Chat ID é: `{message.chat.id}`", parse_mode="Markdown")
+    _html_reply(message, f"🆔 Seu Chat ID: <code>{message.chat.id}</code>")
 
 
 # ── MEDIA HANDLERS ────────────────────────────────────────────────────────────
@@ -272,7 +454,7 @@ def descobrir_id(message):
 @bot.message_handler(content_types=['photo'])
 def ler_nota_fiscal(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "📸 *Analisando cupom...*", parse_mode="Markdown")
+    _html_send(chat_id, telegram_format.format_analisando_cupom_html())
     try:
         # 1. Download da imagem
         file_info = bot.get_file(message.photo[-1].file_id)
@@ -283,15 +465,18 @@ def ler_nota_fiscal(message):
         try:
             with app.app_context():
                 if Financas.query.filter_by(foto_hash=foto_hash).first():
-                    bot.send_message(chat_id, "⚠️ Esta nota já foi registrada anteriormente.")
+                    _html_send(chat_id, telegram_format.format_nota_duplicada_html())
                     return
         except Exception:
             foto_hash = None
 
-        # 3. Lista de compras pendentes para cruzamento
+        # 3. Lista de compras pendentes + catálogo de produtos
         with app.app_context():
+            from theoos import produtos as produtos_svc
             pendentes = ListaCompras.query.filter_by(status='pendente').all()
             lista_str = ", ".join(f"[ID:{p.id} {p.item}]" for p in pendentes) or "Lista vazia."
+            catalog = produtos_svc.build_catalog(db, ItemGasto, Produto)
+            catalog_block = produtos_svc.catalog_prompt_block(catalog)
 
         # Obter categorias do banco de dados
         try:
@@ -315,6 +500,7 @@ Para cada item, além de extrair o nome original/bruto impresso no cupom (no cam
 1. Um nome simplificado, limpo e padronizado em "nome_normalizado" (ex: se "LEITE UHT INT LIDER 1L", o nome_normalizado será "Leite Integral"; se "LJA PERA", será "Laranja Pera"; se "ARROZ T1 PRATO FINO 5KG", será "Arroz Branco").
 2. A marca do produto no campo "marca" (ex: "Lider", "Prato Fino", "Nestlé"). Se não houver marca identificável, retorne null.
 3. A unidade de medida do produto no campo "unidade" (use uma destas siglas: "un", "kg", "g", "l", "ml", "Cx"). Se não for evidente, use "un".
+{catalog_block.strip()}
 
 Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
 {{"mercado":"Nome","data":"DD/MM/AAAA","total_nota":0.00,"itens":[{{"nome":"NOME ORIGINAL","nome_normalizado":"Nome Limpo","marca":"Marca ou null","quantidade":1.0,"valor_unitario":0.00,"valor_total":0.00,"categoria":"Supermercado","unidade":"un"}}],"ids_comprados":[]}}
@@ -340,6 +526,8 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
 
         # 6. Salva no banco
         with app.app_context():
+            produtos_svc.normalize_itens_ocr(db, ItemGasto, itens_lista, Produto)
+
             # Processa e tenta converter a data retornada pela IA (combinando com a hora atual)
             data_str = dados.get('data', '').strip()
             agora = datetime.now()
@@ -362,14 +550,15 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
             db.session.add(novo_gasto)
             db.session.commit()
 
-            msg = f"🛒 *{mercado}*\n\n"
             categorias_compradas = []
+            riscados_nomes = []
 
             for item in itens_lista:
                 cat = item.get("categoria", item.get("Categoria", "Outros"))
                 categorias_compradas.append(cat)
                 db.session.add(ItemGasto(
                     financa_id=novo_gasto.id,
+                    produto_id=item.get("produto_id"),
                     nome=item.get("nome", "Desconhecido"),
                     nome_normalizado=item.get("nome_normalizado"),
                     marca=item.get("marca"),
@@ -379,27 +568,26 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
                     categoria=cat,
                     unidade=item.get("unidade", "un")
                 ))
-                msg += f"• {item.get('nome')} × {item.get('quantidade')} — R$ {float(item.get('valor_total', 0)):.2f}\n"
-
 
             if ids_riscados:
-                msg += "\n✅ *Riscados da lista:*\n"
                 for cid in ids_riscados:
                     item_lista = db.session.get(ListaCompras, cid)
                     if item_lista and item_lista.status == 'pendente':
                         item_lista.status = 'comprado'
                         item_lista.marcado = False
-                        msg += f"~ {item_lista.item} ~\n"
+                        riscados_nomes.append(item_lista.item)
 
             db.session.commit()
 
-        msg += f"\n💰 *Total: R$ {total:.2f}*"
+        msg = telegram_format.format_cupom_html(
+            mercado, itens_lista, total, data_compra=data_gasto, riscados=riscados_nomes or None,
+        )
 
         # Telegram tem limite de 4096 caracteres por mensagem
         if len(msg) > 4000:
-            msg = msg[:3900] + "\n\n_(lista truncada)_"
+            msg = msg[:3900] + "\n\n<i>(lista truncada)</i>"
 
-        bot.send_message(chat_id, msg, parse_mode="Markdown")
+        _html_send(chat_id, msg, disable_web_page_preview=True)
         verificar_orcamentos(categorias_compradas)
 
     except json.JSONDecodeError as e:
@@ -409,12 +597,12 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
     except Exception as e:
         tb = traceback.format_exc()
         print(f"ERRO FOTO:\n{tb}")
-        bot.send_message(chat_id, f"❌ Erro ao processar o cupom:\n`{type(e).__name__}: {str(e)[:200]}`", parse_mode="Markdown")
+        _html_send(chat_id, telegram_format.format_erro_html("Erro ao processar cupom", f"<code>{type(e).__name__}: {str(e)[:200]}</code>"))
 
 
 @bot.message_handler(content_types=['voice'])
 def processar_voz(message):
-    bot.reply_to(message, "👂 *Ouvindo...*", parse_mode="Markdown")
+    _html_reply(message, telegram_format.format_ouvindo_html())
     try:
         file_info = bot.get_file(message.voice.file_id)
         audio_part = types.Part.from_bytes(
@@ -445,14 +633,13 @@ Retorne JSON: {{"itens":[{{"nome":"Batata","quantidade":2.0,"unidade":"kg","cate
                         status='pendente'
                     ))
                 db.session.commit()
-            linhas = "\n".join(f"• {i['quantidade']} {i['unidade']} de {i['nome']}" for i in novos_itens)
-            bot.reply_to(message, f"✅ *Adicionados via voz:*\n{linhas}", parse_mode="Markdown")
+            _html_reply(message, telegram_format.format_lista_itens_ok_html(novos_itens, via="voz"))
         else:
-            bot.reply_to(message, "🤔 Não entendi os itens. Tente novamente.")
+            _html_reply(message, telegram_format.format_erro_html("Não entendi", "Tente descrever os itens novamente."))
 
     except Exception as e:
         print(f"ERRO VOZ: {e}")
-        bot.reply_to(message, "❌ Erro ao processar áudio.")
+        _html_reply(message, telegram_format.format_erro_html("Erro ao processar áudio"))
 
 
 def _actor_telegram(message):
@@ -463,7 +650,7 @@ def _actor_telegram(message):
 def _adicionar_item_telegram(chat_id, texto, actor):
     texto = (texto or "").strip()
     if not texto:
-        bot.send_message(chat_id, "❌ Informe o nome do item (ex: Leite 2 un).")
+        _html_send(chat_id, telegram_format.format_erro_html("Informe o item", "Ex: <i>Leite 2 un</i>"))
         return False
     try:
         prompt = f"""
@@ -478,7 +665,7 @@ Retorne JSON: {{"itens":[{{"nome":"Leite","quantidade":2.0,"unidade":"un","categ
         )
         novos_itens = json.loads(resposta.text.strip()).get("itens", [])
         if not novos_itens:
-            bot.send_message(chat_id, "🤔 Não entendi o item. Tente de novo (ex: Pão 2 un).")
+            _html_send(chat_id, telegram_format.format_erro_html("Não entendi", "Ex: <i>Pão 2 un</i>"))
             return False
         with app.app_context():
             for i in novos_itens:
@@ -491,15 +678,11 @@ Retorne JSON: {{"itens":[{{"nome":"Leite","quantidade":2.0,"unidade":"un","categ
                     criado_por=actor,
                 ))
             db.session.commit()
-        linhas = "\n".join(
-            f"• {i.get('quantidade', 1)} {i.get('unidade', 'un')} — {i['nome']}"
-            for i in novos_itens
-        )
-        bot.send_message(chat_id, f"✅ <b>Adicionado à lista:</b>\n{linhas}", parse_mode="HTML")
+        _html_send(chat_id, telegram_format.format_lista_itens_ok_html(novos_itens, via="lista"))
         return True
     except Exception as e:
         print(f"ERRO ADD LISTA: {e}")
-        bot.send_message(chat_id, "❌ Erro ao adicionar item.")
+        _html_send(chat_id, telegram_format.format_erro_html("Erro ao adicionar item"))
         return False
 
 
@@ -512,20 +695,24 @@ def callback_lista(call):
         if data == "lista_add":
             _user_states[chat_id] = "adding_item"
             bot.answer_callback_query(call.id)
-            bot.send_message(
+            _html_send(
                 chat_id,
-                "➕ <b>Adicionar item</b>\n\nDigite o produto (ex: <i>Leite 2 un</i> ou <i>Frango 1 kg</i>).",
-                parse_mode="HTML",
+                telegram_format.format_info_html(
+                    "➕ <b>Adicionar item</b>",
+                    "Digite o produto (ex: <i>Leite 2 un</i> ou <i>Frango 1 kg</i>).",
+                ),
             )
             return
 
         if data == "lista_melhoria":
             _user_states[chat_id] = "melhoria"
             bot.answer_callback_query(call.id)
-            bot.send_message(
+            _html_send(
                 chat_id,
-                "💡 <b>Sugerir melhoria</b>\n\nDescreva o que podemos melhorar no ThéoOS:",
-                parse_mode="HTML",
+                telegram_format.format_info_html(
+                    "💡 <b>Sugerir melhoria</b>",
+                    "Descreva o que podemos melhorar no ThéoOS:",
+                ),
             )
             return
 
@@ -536,13 +723,17 @@ def callback_lista(call):
                 ).all()
             bot.answer_callback_query(call.id)
             if not itens:
-                bot.send_message(chat_id, "✨ Nenhum item pendente para riscar.")
+                _html_send(chat_id, telegram_format.format_lista_vazia_html())
                 return
-            texto = "✅ <b>Toque para riscar ou desmarcar</b>\n<i>A baixa financeira só ocorre ao processar o cupom no app.</i>"
-            bot.send_message(
+            texto = (
+                telegram_format.format_info_html(
+                    "✅ <b>Riscar / desmarcar</b>",
+                    "Toque nos itens abaixo.\n<i>A baixa financeira só ocorre ao processar o cupom no app.</i>",
+                )
+            )
+            _html_send(
                 chat_id,
                 texto,
-                parse_mode="HTML",
                 reply_markup=telegram_lista.build_riscar_keyboard(itens),
             )
             return
@@ -574,12 +765,14 @@ def callback_lista(call):
         if data == "lista_open":
             url = telegram_lista.web_lista_url()
             bot.answer_callback_query(call.id)
-            bot.send_message(
+            _html_send(
                 chat_id,
-                f"🌐 <b>Painel ThéoOS</b>\n\nAbra no navegador:\n<code>{url}</code>\n\n"
-                "<i>Dica: defina THEOOS_WEB_URL no .env com o IP da rede "
-                "(ex: http://192.168.0.10:5000) para botão direto no celular.</i>",
-                parse_mode="HTML",
+                telegram_format.format_info_html(
+                    "🌐 <b>Painel ThéoOS</b>",
+                    f"Abra no navegador:\n<code>{url}</code>\n\n"
+                    "<i>Dica: defina THEOOS_WEB_URL no .env com o IP da rede "
+                    "(ex: http://192.168.0.10:5000) para botão direto no celular.</i>",
+                ),
             )
             return
 
@@ -592,7 +785,7 @@ def callback_lista(call):
                 total = telegram_lista.calc_total_estimado(itens, ItemGasto, db) if itens else 0
             if not itens:
                 bot.edit_message_text(
-                    "✨ Lista vazia! Nada pendente.",
+                    telegram_format.format_lista_vazia_html(),
                     chat_id,
                     call.message.message_id,
                     parse_mode="HTML",
@@ -628,16 +821,15 @@ def handle_melhoria_text(message):
     _user_states.pop(message.chat.id, None)
     texto = (message.text or "").strip()
     if not texto:
-        bot.reply_to(message, "❌ Descreva a melhoria sugerida.")
+        _html_reply(message, telegram_format.format_erro_html("Sugestão vazia", "Descreva a melhoria desejada."))
         return
     actor = _actor_telegram(message)
     with app.app_context():
         log_action(db, "sugestao", "melhoria", detail=texto[:500], actor=actor)
-    bot.reply_to(
-        message,
-        "💡 Obrigado! Sua sugestão foi registrada e será analisada.",
-        parse_mode="HTML",
-    )
+    _html_reply(message, telegram_format.format_ok_html(
+        "Sugestão registrada",
+        "💡 Obrigado! Sua ideia será analisada.",
+    ))
 
 
 @bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
@@ -667,18 +859,26 @@ Retorne JSON: {{"itens":[{{"nome":"Batata","quantidade":2.0,"unidade":"kg","cate
                     ))
                 db.session.commit()
             i = novos_itens[0]
-            bot.reply_to(message,
-                f"✅ *{i['quantidade']} {i['unidade']}* de *{i['nome']}* adicionado!",
-                parse_mode="Markdown")
+            _html_reply(message, telegram_format.format_lista_itens_ok_html(novos_itens, via="texto"))
         else:
-            bot.reply_to(message, "🤔 Não entendi o que quer comprar.")
+            _html_reply(message, telegram_format.format_erro_html("Não entendi", "Descreva o item que deseja comprar."))
 
     except Exception as e:
         print(f"ERRO TEXTO: {e}")
-        bot.reply_to(message, "❌ Erro ao processar a mensagem.")
+        _html_reply(message, telegram_format.format_erro_html("Erro ao processar mensagem"))
 
 
 if __name__ == '__main__':
+    import socket
+
+    _instance_lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        _instance_lock.bind(("127.0.0.1", 48721))
+        _instance_lock.listen(1)
+    except OSError:
+        print("Outra instancia do bot ThéoOS ja esta em execucao. Saindo.")
+        sys.exit(0)
+
     print("ThéoOS Bot online...")
     while True:
         try:

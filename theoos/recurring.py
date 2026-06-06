@@ -144,4 +144,40 @@ def contas_due_for_reminder(db, Conta, days_before):
     return Conta.query.filter(
         Conta.status == "pendente",
         Conta.data_vencimento == alvo,
-    ).all()
+    ).order_by(Conta.data_vencimento).all()
+
+
+def contas_overdue(db, Conta):
+    """Contas pendentes com vencimento anterior a hoje."""
+    hoje = date.today()
+    return Conta.query.filter(
+        Conta.status == "pendente",
+        Conta.data_vencimento < hoje,
+    ).order_by(Conta.data_vencimento).all()
+
+
+def receber_due_for_reminder(db, ContaReceber, days_before):
+    """Receitas esperadas em exatamente days_before dias."""
+    from datetime import timedelta
+
+    alvo = date.today() + timedelta(days=days_before)
+    return ContaReceber.query.filter(
+        ContaReceber.status == "pendente",
+        ContaReceber.data_esperada == alvo,
+    ).order_by(ContaReceber.data_esperada).all()
+
+
+def parse_reminder_days(days_str, default="0,1,2,7"):
+    """Lista única e ordenada de dias (0 = no dia do vencimento)."""
+    raw = (days_str or default).strip()
+    out = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if part.isdigit():
+            out.add(int(part))
+    if not out:
+        for part in default.split(","):
+            part = part.strip()
+            if part.isdigit():
+                out.add(int(part))
+    return sorted(out)
