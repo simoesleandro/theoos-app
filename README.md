@@ -1,166 +1,227 @@
-# 🏠 ThéoOS
+<div align="center">
 
-> Sistema operacional doméstico — controle financeiro familiar, lista de compras inteligente e leitura de cupom fiscal com IA.
+<img src="docs/screenshot.png" alt="ThéoOS Dashboard" width="100%">
 
----
+<br/>
 
-## 📌 Sobre o Projeto
+# ThéoOS
 
-**ThéoOS** é um sistema de gestão doméstica desenvolvido para uso familiar no dia a dia. O nome é uma homenagem ao Théo — e o "OS" reflete exatamente o que o sistema faz: opera a casa.
+**PT:** Sistema operacional doméstico familiar — gestão financeira, compras inteligentes, detetive de preços e alertas via Telegram, tudo com IA.  
+**EN:** Family home operating system — financial management, smart shopping, price detective and Telegram alerts, all powered by AI.
 
-Desenvolvido como projeto de portfólio durante minha transição de carreira para a área de tecnologia, com foco em Análise e Desenvolvimento de Sistemas (FIAP).
+<br/>
 
-O sistema roda localmente em rede doméstica, com um bot Telegram como interface mobile — permitindo adicionar itens à lista de compras por voz, texto ou foto de cupom fiscal direto do celular.
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.x-lightgrey?style=flat-square&logo=flask)](https://flask.palletsprojects.com)
+[![Gemini](https://img.shields.io/badge/Gemini-2.5--Flash-4285F4?style=flat-square&logo=google)](https://aistudio.google.com)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?style=flat-square&logo=telegram&logoColor=white)](https://core.telegram.org/bots)
+[![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/simoesleandro/theoos-app?style=flat-square&color=8b5cf6)](https://github.com/simoesleandro/theoos-app/commits)
 
----
+<br/>
 
-## 🧠 Funcionalidades
+[🐛 Reportar bug](https://github.com/simoesleandro/theoos-app/issues) &nbsp;·&nbsp;
+[💡 Sugerir feature](https://github.com/simoesleandro/theoos-app/issues)
 
-- **Lista de compras inteligente** — adicione itens pelo dashboard, por texto livre ou por mensagem de voz via bot Telegram
-- **Leitura de cupom fiscal com IA** — envie foto do cupom no Telegram → Gemini Vision extrai todos os itens, valores e categorias automaticamente
-- **Controle de contas** — cadastro de contas a pagar e a receber com alertas automáticos de vencimento via Telegram
-- **Controle de orçamento** — defina limites mensais por categoria e receba alertas quando atingir 80% do limite
-- **Detetive de Preços** — rastreie o histórico de preços de qualquer produto com comparador de menor e maior preço entre compras
-- **Relatórios financeiros** — visão consolidada de tudo que foi registrado com gráficos e filtros por período
-- **Deduplicação de notas** — sistema identifica cupons já registrados por hash MD5, evitando lançamentos duplicados
-- **Painel “Esta semana”** — contas a pagar/receber nos próximos 7 dias, orçamento e alertas de preço no dashboard
-- **Estimativa por mercado** — na lista de compras, compara total estimado por loja (histórico)
-- **Configurações** — PIN na web, backup/restore ZIP, lembretes Telegram configuráveis, contas fixas mensais, tema claro
-- **Conciliação CSV** — importar extrato do banco e cruzar com lançamentos
-- **PWA** — adicionar o painel à tela inicial do celular (`static/manifest.json`)
-- **Notificações web** — lembretes de vencimento no navegador (Configurações)
-- **PDF mensal** — exportar relatório do mês em PDF
-- **Comparador por mercado** — gráfico no Detetive de Preços
-- **Bot** — `/semana` e `/orcamento` no Telegram
-
-Documentação extra: [docs/API.md](docs/API.md), [docs/DEPLOY.md](docs/DEPLOY.md), [docs/PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md)  
-Contexto para agentes/IA: [AGENTS.md](AGENTS.md)
+</div>
 
 ---
 
-## 🛠️ Stack
+## 📋 Índice / Table of Contents
+
+- [Sobre](#-sobre--about)
+- [Funcionalidades](#-funcionalidades--features)
+- [Stack](#-stack)
+- [Módulos](#-módulos--modules)
+- [Instalação](#-instalação--setup)
+- [Variáveis de Ambiente](#-variáveis-de-ambiente--environment-variables)
+- [Arquitetura](#-arquitetura--architecture)
+- [Roadmap](#-roadmap)
+- [Autor](#-autor--author)
+
+---
+
+## 📌 Sobre / About
+
+**PT:**  
+ThéoOS é um sistema doméstico familiar que centraliza gestão financeira, controle de compras e monitoramento de preços em um dashboard Flask. Usa Gemini Vision para ler cupons fiscais automaticamente, detecta variações de preço em produtos do mercado e envia alertas via Telegram. Roda como serviço Windows 24/7 via WinSW.
+
+**EN:**  
+ThéoOS is a family home system that centralizes financial management, shopping control and price monitoring in a Flask dashboard. Uses Gemini Vision to automatically read grocery receipts, detects price variations in supermarket products and sends alerts via Telegram. Runs as a Windows service 24/7 via WinSW.
+
+---
+
+## ✨ Funcionalidades / Features
+
+- ✅ **Dashboard financeiro** — receitas, gastos, saldo e contas a pagar do mês
+- ✅ **Contas a vencer** — alerta de boletos e vencimentos próximos
+- ✅ **Leitura de cupom fiscal** — Gemini Vision extrai itens e valores automaticamente
+- ✅ **Detetive de preços** — detecta variações de preço em produtos ao longo do tempo
+- ✅ **Alertas de preço** — notificação quando produto cai de preço
+- ✅ **Lista de compras** — gestão colaborativa familiar
+- ✅ **Contas a receber** — controle de receitas futuras
+- ✅ **Orçamento** — planejamento mensal por categoria
+- ✅ **Relatórios** — histórico financeiro com export CSV
+- ✅ **Alertas Telegram** — notificações automáticas de vencimentos e preços
+- ✅ **Serviço Windows** — roda 24/7 via WinSW na porta 5000
+
+---
+
+## 🛠 Stack
 
 | Camada | Tecnologia |
-|---|---|
-| Linguagem | Python 3 |
-| Web Framework | Flask + Jinja2 |
-| Banco de dados | SQLite (Flask-SQLAlchemy) |
-| IA | Google Gemini 2.5 Flash (Vision + NLP) |
-| Bot | pyTelegramBotAPI |
-| Frontend | HTML + CSS + JavaScript (vanilla) |
-| Serviço Windows | WinSW — `theoos-web.xml` / `theoos-bot.xml` (início automático; ver [docs/DEPLOY.md](docs/DEPLOY.md)) |
+|--------|------------|
+| Backend | Python 3.11+ · Flask · Waitress |
+| Frontend | HTML/CSS/JS vanilla · dark theme |
+| Banco | SQLite local |
+| IA | Gemini 2.5 Flash Vision (leitura de cupons) |
+| Notificações | Telegram Bot API |
+| Deploy | WinSW (serviço Windows) · porta 5000 |
 
 ---
 
-## 🚀 Como Executar Localmente
+## 📦 Módulos / Modules
 
-### Pré-requisitos
+| Módulo | O que faz |
+|--------|-----------|
+| **Dashboard** | KPIs financeiros do mês — recebido, gasto, saldo, boletos |
+| **Lista de Compras** | Gestão colaborativa de itens a comprar |
+| **Processar Cupom** | Upload de foto do cupom → Gemini Vision extrai itens automaticamente |
+| **Detetive de Preços** | Histórico de preços por produto — detecta altas e baixas |
+| **Contas a Pagar** | Calendário de vencimentos com alertas |
+| **Contas a Receber** | Controle de receitas esperadas |
+| **Orçamento** | Planejamento mensal por categoria |
+| **Relatórios** | Histórico financeiro com export CSV |
+| **Categorias** | Gestão de categorias de gastos |
+| **Configurações** | Preferências do sistema e integrações |
 
-- Python 3.10+
-- Bot Telegram criado via [@BotFather](https://t.me/BotFather)
-- Chave de API do [Google AI Studio](https://aistudio.google.com/)
+---
 
-### Instalação
+## 🚀 Instalação / Setup
+
+### Pré-requisitos / Prerequisites
+
+- Python 3.11+
+- Chave Gemini (gratuita em [aistudio.google.com](https://aistudio.google.com))
+- Bot Telegram (opcional — para alertas)
+
+### Instalação / Installation
 
 ```bash
-# 1. Clone o repositório
-git clone https://github.com/simoesleandro/theoos.git
-cd theoos
+# Clone o repositório
+git clone https://github.com/simoesleandro/theoos-app
+cd theoos-app
 
-# 2. Crie e ative o ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
-
-# 3. Instale as dependências
+# Instale as dependências
 pip install -r requirements.txt
 
-# 4. Configure as variáveis de ambiente
+# Configure as variáveis de ambiente
 cp .env.example .env
-# Edite o .env com suas credenciais
+# Edite .env com suas chaves
+
+# Rode o projeto
+python app.py
+# → http://localhost:5000
 ```
 
-### Variáveis de ambiente
+---
 
-```env
-# Telegram
-TELEGRAM_TOKEN=
-TELEGRAM_CHAT_ID=
+## 🔐 Variáveis de Ambiente / Environment Variables
 
-# Google Gemini
-GEMINI_API_KEY=
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `GEMINI_API_KEY` | Gemini Vision (leitura de cupons) | — |
+| `TELEGRAM_BOT_TOKEN` | Bot Telegram (alertas) | — |
+| `TELEGRAM_CHAT_ID` | Chat ID destino | — |
+| `DB_PATH` | Caminho do SQLite | `data/theoos.db` |
+| `PORT` | Porta do servidor | `5000` |
 
-# Flask
-SECRET_KEY=
+> Lista completa em: [`.env.example`](.env.example)
+
+---
+
+## 🏗 Arquitetura / Architecture
+
+```
+theoos-app/
+├── app.py                 # Entry point Flask (:5000)
+├── routes/                # Rotas por módulo
+│   ├── dashboard.py       # KPIs financeiros
+│   ├── compras.py         # Lista de compras
+│   ├── cupom.py           # Leitura de cupom fiscal
+│   ├── precos.py          # Detetive de preços
+│   ├── financeiro.py      # Contas a pagar/receber
+│   └── relatorios.py      # Relatórios e export
+├── services/
+│   ├── gemini_vision.py   # Extração de itens via Gemini
+│   └── telegram.py        # Notificações
+├── db/                    # SQLite + schema
+├── static/                # UI web
+└── theoos-service.xml     # WinSW — serviço Windows
 ```
 
-### Executando
+**Fluxo do cupom fiscal:**
+
+```
+Foto do cupom (upload)
+      ↓
+Gemini Vision extrai itens, quantidades e valores
+      ↓
+Itens salvos no banco com data e estabelecimento
+      ↓
+Detetive de Preços detecta variações vs histórico
+      ↓
+Alerta Telegram se preço subiu ou caiu
+```
+
+---
+
+## 🪟 Serviço Windows (WinSW)
 
 ```bash
-# Dashboard web
-python app.py
-
-# Bot Telegram (em outro terminal)
-python bot.py
-```
-
-Acesse o dashboard em `http://localhost:5000`
-
-### Rodando como serviço Windows (opcional)
-
-Os arquivos `theoos-web.xml` e `theoos-bot.xml` permitem instalar o dashboard e o bot como serviços Windows via [WinSW](https://github.com/winsw/winsw), iniciando automaticamente com o sistema.
-
----
-
-## 📂 Estrutura do Projeto
-
-```
-appfamiliar/
-├── app.py                 # Flask — models e rotas principais
-├── bot.py                 # Telegram + Gemini + agendadores
-├── theoos/                # Auth, backup, insights, PDF, migrações, APIs
-├── templates/
-│   ├── macros/            # ui.html, bills.html
-│   ├── base.html, index.html, config.html, login.html, …
-├── static/
-│   ├── css/theoos.css     # Design system v2
-│   ├── js/theoos-notify.js
-│   └── manifest.json, sw.js, uploads/
-├── scripts/               # winsw-web.cmd, winsw-bot.cmd, install-winsw.ps1
-├── tests/test_smoke.py
-├── docs/                  # API, DEPLOY, PROJECT_MEMORY
-├── AGENTS.md              # Memória para assistentes de código
-├── theoos-web.xml / theoos-bot.xml
-└── requirements.txt
+# Instalar como serviço Windows
+theoos-service.exe install
+theoos-service.exe start
+# → roda 24/7 em background na porta 5000
 ```
 
 ---
 
-## 💡 Decisões de Arquitetura
+## 🗺 Roadmap
 
-**Por que Flask em vez de Django ou FastAPI?**
-O sistema roda em rede local em uma máquina doméstica com recursos limitados. Flask tem footprint mínimo, sem overhead de ORM complexo ou servidor ASGI — ideal para um projeto pessoal que precisa ser simples de manter e reiniciar.
-
-**Por que SQLite em vez de PostgreSQL?**
-Banco local, uso exclusivamente familiar, sem necessidade de acesso concorrente por múltiplos usuários simultâneos. SQLite elimina a necessidade de um servidor de banco de dados separado — zero configuração, zero manutenção.
-
-**Por que hash MD5 para deduplicação de cupons?**
-O mesmo cupom pode ser fotografado mais de uma vez. O hash MD5 dos bytes da imagem garante que a mesma nota fiscal nunca seja lançada duas vezes — sem precisar armazenar a imagem original.
-
-**Por que WinSW para o deploy local?**
-O sistema precisa iniciar automaticamente com o Windows e sobreviver a reinicializações. O WinSW transforma scripts Python em serviços nativos do Windows — sem depender de terminal aberto ou task scheduler.
+- [x] Dashboard financeiro com KPIs do mês
+- [x] Leitura automática de cupom fiscal via Gemini Vision
+- [x] Detetive de preços com histórico
+- [x] Alertas Telegram de vencimentos e preços
+- [x] Serviço Windows 24/7 via WinSW
+- [x] Export CSV de relatórios
+- [ ] App mobile (PWA)
+- [ ] Integração com banco digital (Open Finance)
+- [ ] OCR offline para cupons sem internet
 
 ---
 
-## 👤 Autor
+## 👤 Autor / Author
 
-**Leandro Simões** — Desenvolvedor em transição de carreira, estudante de Análise e Desenvolvimento de Sistemas (FIAP 2026).
+<div align="center">
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Leandro%20Sim%C3%B5es-blue?logo=linkedin)](https://www.linkedin.com/in/leandro-sim%C3%B5es-7a0b3537b/)
-[![GitHub](https://img.shields.io/badge/GitHub-simoesleandro-black?logo=github)](https://github.com/simoesleandro)
+**Leandro Simões**
+
+> *Projeto nomeado em homenagem ao Théo* 💙
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white)](https://linkedin.com/in/leandro-sim%C3%B5es-7a0b3537b)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/simoesleandro)
+[![Portfolio](https://img.shields.io/badge/Portfolio-06b6d4?style=flat-square&logo=safari&logoColor=white)](https://simoesleandro.github.io/portfolio)
+
+*Fullstack · IA Aplicada · Civic Tech*
+
+</div>
 
 ---
 
-## ⚠️ Aviso
+<div align="center">
 
-Este projeto foi desenvolvido para uso pessoal e familiar. Os dados financeiros são privados e não são compartilhados com terceiros.
+Feito com ☕ e IA em / Made with ☕ and AI in 🇧🇷 Rio de Janeiro
+
+</div>
