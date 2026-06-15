@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber, Orcamento, Categoria, Produto, datetime as app_datetime, timedelta as app_timedelta
+from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber, Orcamento, Categoria, Produto
+from datetime import datetime, timedelta
 from theoos import telegram_lista
 from theoos import telegram_format
 from theoos.audit import log_action
@@ -110,7 +111,7 @@ def alertar_contas_vencendo():
             receber = recurring.receber_due_for_reminder(db, ContaReceber, dias)
             if not contas and not receber:
                 continue
-            alvo = hoje + app_timedelta(days=dias)
+            alvo = hoje + timedelta(days=dias)
             msg = telegram_format.format_lembrete_contas_html(contas, receber, dias, alvo)
             try:
                 _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
