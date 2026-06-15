@@ -320,6 +320,36 @@ def exportar():
     return output
 
 
+@bp.route("/exportar/ofx")
+def exportar_ofx():
+    from theoos import ofx
+
+    transacoes: list[dict] = []
+    saldo = 0.0
+    for n in (
+        Financas.query.order_by(Financas.data.asc())
+        .all()
+    ):
+        valor = float(n.valor)
+        if n.tipo == "debito":
+            valor = -valor
+        saldo += valor
+        transacoes.append(
+            {
+                "data": n.data,
+                "valor": valor,
+                "name": (n.descricao or "")[:32],
+                "memo": n.descricao,
+            }
+        )
+    body = ofx.build_ofx(transacoes, ledger_balance=saldo)
+    resp = make_response(body)
+    fname = f"theoos-{date.today().strftime('%Y%m%d')}.ofx"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{fname}"'
+    resp.headers["Content-Type"] = "application/x-ofx"
+    return resp
+
+
 @bp.route("/exportar/pdf")
 def exportar_pdf():
     from theoos import pdf_report
