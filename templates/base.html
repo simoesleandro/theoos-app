@@ -31,6 +31,7 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js" integrity="sha384-ujb1lZYEpJ42dAD6CrpLh+fzS4gx2dWkTi1O4S9ZQXEqgbe6KFlx3eS3tHvbTA" crossorigin="anonymous"></script>
 <script src="{{ url_for('static', filename='js/theoos-notify.js') }}" defer></script>
 <script>
 (function() {
@@ -56,7 +57,7 @@
 {% block head_extra %}{% endblock %}
 {% block styles %}{% endblock %}
 </head>
-<body>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>
 
 <div class="mobile-topbar">
   <div class="mobile-logo">Théo<em>OS</em></div>

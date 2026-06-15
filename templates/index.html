@@ -67,7 +67,11 @@
   </div>
 </div>
 
-<div class="bills-grid reveal">
+<div class="bills-grid reveal"
+     hx-get="{{ url_for('dashboard.api_dashboard_week') }}"
+     hx-trigger="every 60s"
+     hx-swap="outerHTML"
+     id="dashboard-week">
   <div class="panel">
     <div class="panel-header">
       <div>

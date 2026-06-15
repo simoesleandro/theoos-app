@@ -1,0 +1,53 @@
+{# Fragmento HTMX: "Contas a vencer" e "Receitas a receber" - faz auto-refresh a cada 60s. #}
+{% from 'macros/bills.html' import bill_row_pagar, bill_row_receber %}
+<div id="week-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+  <div class="panel" style="border-radius:0;border:0">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Contas a vencer</div>
+        <p class="panel-sub">Próximos 7 dias · {{ semana.total_pagar | dinheiro }}</p>
+      </div>
+      <a href="/contas" class="panel-action">Gerenciar</a>
+    </div>
+    {% if semana.contas %}
+      <div class="bill-list" data-bill-expand>
+        {% for conta in semana.contas %}
+          {{ bill_row_pagar(conta, hoje, 'bill-item-extra is-collapsed' if loop.index > 3 else '') }}
+        {% endfor %}
+        {% if semana.contas | length > 3 %}
+        <div class="panel-footer">
+          <button type="button" class="panel-more" data-bill-expand-btn data-count="{{ semana.contas | length - 3 }}">+ Ver mais {{ semana.contas | length - 3 }} conta{% if semana.contas | length - 3 != 1 %}s{% endif %}</button>
+          <a href="/contas" class="panel-more panel-more-link is-collapsed" data-bill-expand-link>Gerenciar todas</a>
+        </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="empty-state"><p>Nada a pagar nos próximos 7 dias.</p></div>
+    {% endif %}
+  </div>
+
+  <div class="panel" style="border-radius:0;border:0">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Receitas a receber</div>
+        <p class="panel-sub">Próximos 7 dias · {{ semana.total_receber | dinheiro }}</p>
+      </div>
+      <a href="/receber" class="panel-action">Gerenciar</a>
+    </div>
+    {% if semana.receber %}
+      <div class="bill-list" data-bill-expand>
+        {% for conta in semana.receber %}
+          {{ bill_row_receber(conta, hoje, 'bill-item-extra is-collapsed' if loop.index > 3 else '') }}
+        {% endfor %}
+        {% if semana.receber | length > 3 %}
+        <div class="panel-footer">
+          <button type="button" class="panel-more" data-bill-expand-btn data-count="{{ semana.receber | length - 3 }}">+ Ver mais {{ semana.receber | length - 3 }} receita{% if semana.receber | length - 3 != 1 %}s{% endif %}</button>
+          <a href="/receber" class="panel-more panel-more-link is-collapsed" data-bill-expand-link>Gerenciar todas</a>
+        </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="empty-state"><p>Nenhum recebimento nos próximos 7 dias.</p></div>
+    {% endif %}
+  </div>
+</div>

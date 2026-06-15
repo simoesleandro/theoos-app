@@ -236,3 +236,15 @@ def pesquisa():
 def favicon():
     return current_app.send_static_file("icons/favicon.svg")
 
+
+@bp.route("/api/dashboard/week")
+def api_dashboard_week():
+    """Fragmento HTMX com os widgets 'Contas a vencer' e 'Receitas a receber'."""
+    from theoos import insights
+
+    hoje = date.today()
+    semana = insights.week_agenda(db, Conta, ContaReceber, hoje, days=7)
+    return current_app.jinja_env.get_template("dashboard/_week.html").render(
+        semana=semana, hoje=hoje
+    )
+
