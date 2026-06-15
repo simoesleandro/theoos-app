@@ -28,27 +28,41 @@
   </div>
 </div>
 
-{% if lancamentos is defined %}
-<div class="panel reveal">
+{% if lancamentos is defined and lancamentos %}
+<div class="panel reveal" style="margin-top:18px">
   <div class="panel-header">
     <div class="panel-title">Resultado</div>
-    <span class="panel-sub">{{ importados }} novo{% if importados != 1 %}s{% endif %} lançamento{% if importados != 1 %}s{% endif %}</span>
+    <div class="panel-sub">
+      {% if meta %}
+        Formato: <strong>{{ meta.formato }}</strong> · Encoding: {{ meta.encoding }} ·
+        Linhas: {{ meta.validos }}/{{ meta.total_linhas }} válidas
+      {% endif %}
+    </div>
   </div>
   <div style="overflow-x:auto">
     <table class="data-table">
-      <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Status</th></tr></thead>
+      <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Tipo</th><th>Status</th></tr></thead>
       <tbody>
-        {% for lan in lancamentos[:30] %}
-        <tr>
-          <td>{{ lan.data.strftime('%d/%m/%Y') }}</td>
-          <td>{{ lan.descricao }}</td>
-          <td class="tabular">{{ lan.valor | dinheiro }}</td>
+        {% for lan in lancamentos[:50] %}
+        <tr class="{% if loop.index > 5 %}hidden-row{% endif %}">
+          <td class="font-roboto">{{ lan.data }}</td>
+          <td>{{ lan.descricao[:60] }}</td>
+          <td class="tabular" style="text-align:right">R$ {{ '%0.2f' % lan.valor }}</td>
+          <td>
+            {% if lan._eh_saida %}<span class="chip chip-warning">Saída</span>
+            {% else %}<span class="chip chip-success">Entrada</span>{% endif %}
+          </td>
           <td>{% if lan.conciliado %}<span class="chip chip-success">Já no sistema</span>{% else %}<span class="chip chip-warning">Novo</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if lancamentos|length > 5 %}
+  <div style="text-align:center;padding:10px">
+    <button type="button" id="btn-ver-mais-csv" class="btn btn-ghost btn-sm" onclick="document.querySelectorAll('#import-csv-table tr.hidden-row, #btn-ver-mais-csv').forEach(el => el.style.display = el.id === 'btn-ver-mais-csv' ? 'none' : 'table-row')">+ Ver mais</button>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}

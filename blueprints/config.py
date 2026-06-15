@@ -181,29 +181,43 @@ def exportar_fluxo_caixa():
 @bp.route("/importar/cartao", methods=["GET", "POST"])
 def importar_cartao():
     if request.method == "GET":
-        return render_template("importar_cartao.html")
+        return render_template(
+            "importar_cartao.html",
+            lancamentos=None,
+            meta=None,
+            importados=0,
+        )
     f = request.files.get("csv")
     if not f:
         flash("Envie um arquivo CSV.", "danger")
         return redirect(url_for("config.importar_cartao"))
-    lancamentos = reconcile.parse_bank_csv(f.read())
+    try:
+        lancamentos, meta = reconcile.parse_bank_csv(f.read())
+    except Exception as e:
+        flash(f"Erro ao processar CSV: {e}", "danger")
+        return redirect(url_for("config.importar_cartao"))
     matched = reconcile.match_against_financas(lancamentos, Financas)
     novos = [x for x in matched if x.get("novo")]
-    for lan in novos[:50]:
+    for lan in novos[:200]:
+        eh_saida = lan.get("_eh_saida", True)
         db.session.add(
             Financas(
                 valor=lan["valor"],
                 descricao=f"CSV: {lan['descricao'][:80]}",
-                tipo="debito",
-                data=datetime.combine(lan["data"], datetime.min.time()),
+                tipo="debito" if eh_saida else "credito",
+                data=datetime.strptime(lan["data"], "%Y-%m-%d"),
                 criado_por=_actor(),
             )
         )
     db.session.commit()
     flash(
-        f"{len(lancamentos)} linhas lidas — {len(novos)} novos lançamentos importados.",
+        f"{meta['validos']} linhas válidas detectadas ({meta['formato']}) — "
+        f"{len(novos)} novos lançamentos importados.",
         "success",
     )
     return render_template(
-        "importar_cartao.html", lancamentos=matched, importados=len(novos)
+        "importar_cartao.html",
+        lancamentos=matched,
+        meta=meta,
+        importados=len(novos),
     )
