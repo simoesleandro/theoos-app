@@ -3,7 +3,7 @@
 Persistent context for AI assistants and developers working on this repo.
 
 **Repo:** https://github.com/simoesleandro/theoos-app.git  
-**Last major update:** June 2026 — multi-user + HTMX dashboard + OCR offline fallback + PWA.
+**Last major update:** June 2026 — multi-user + HTMX dashboard + OCR offline fallback + PWA + service stability fix.
 
 ---
 
@@ -162,6 +162,36 @@ theoos-web.xml / theoos-bot.xml
 - **UI copy:** Portuguese (pt-BR). **CSS:** extend `theoos.css`, avoid inline styles in new work.
 - **Bill rows:** use `macros/bills.html` for pay/receive list pattern.
 - **Cost calibration** (lessons from the Phase 0–3 session): avoid re-reading large files (`app.py` was 2152 lines × 5+ reads = ~$0.10 wasted per re-read); keep thinking blocks ~2k tokens, not 20k; prefer 1 commit per phase over 5 small ones; respond in PT-BR but commit messages in English; do not regenerate boilerplate that already exists. Typical commit cost ~$0.10–0.20 once calibrated; first-time exploration of an unknown codebase can run $3+ without these constraints.
+
+---
+
+### Phase 6 — Service stability + template fix (June 2026)
+
+Web service restart-looped every ~10s and bot never started. Two independent root causes plus one template bug:
+
+#### WinSW launcher Python path
+- `scripts/winsw-{web,bot}.cmd` had `C:\Users\Leand\...\Python313\python.exe` hardcoded (author's dev machine). The actual host user is `stife` with `Python312`. Bot never started (`logs/service-error.log`: 215 × "Python nao encontrado" since 14/06 17:11). Web only "worked" because `app.py` was started manually before the broken `flask_wtf` import was added.
+- Always point `THEOOS_PYTHON` at the real host's Python; verify with `sc.exe qc theoos-web` after install.
+- `theoos-bot.xml` used hardcoded lowercase `C:\meus_projetos\theoos-app` while `theoos-web.xml` used `%BASE%`. Standardized on `%BASE%` for both.
+
+#### Missing pip deps after refactor
+- `app.py:12` added `from flask_wtf.csrf import CSRFProtect` (Phase 0) but `flask-wtf==1.2.1` (in `requirements.txt`) was never `pip install`-ed in `Python312`. `pip list` showed only `Flask`, `Flask-SQLAlchemy`, `waitress`. Fix: `python -m pip install -r requirements.txt`.
+- Lesson: after adding any new import to `app.py` / `bot.py`, run `pip install -r requirements.txt` and restart the service. The restart-loop symptom is a `ModuleNotFoundError` repeating in `theoos-web.err.log`.
+
+#### `url_for` namespace in templates
+- `templates/config.html` had `url_for('config_backup')`, `url_for('exportar')` etc. without the blueprint prefix. Flask's `BuildError` is **not** an `HTTPException`, so the global handler in `app.py:66` swallows it and silently redirects to `/` — user sees "Configurações" link → bounce to dashboard with no message.
+- Always write `url_for('config.config_backup')` (or `url_for('relatorios.exportar')`, etc.). The error message includes the correct suggestion: `Did you mean 'config.config_backup' instead?`.
+- Audit rule: `grep -n "url_for('" templates/*.html` and cross-check each endpoint against the blueprint's `@bp.route` lines.
+
+#### Jinja caches templates in production
+- `THEOOS_SERVICE=1` disables Flask debug, so `TEMPLATES_AUTO_RELOAD=False`. Edits to `templates/*.html` are **not** picked up until `.\theoos-web.exe restart`. A clean `/health` + 200 OK on `/config` after an edit is *not* proof the fix worked — must check the rendered body (`curl -s http://localhost:5000/login -b cookies.txt | grep "panel-title"`).
+- Same applies to blueprint changes (which need a full restart anyway).
+
+#### Admin auto-bootstrap leaks password to log
+- `theoos/auth.py:105` uses `secrets.token_urlsafe(12)` when `THEOOS_ADMIN_PASSWORD` is unset, then logs the cleartext password as WARNING. The line lives forever in `logs/theoos.log` and will be committed if the log ever gets versioned. Define `THEOOS_ADMIN_PASSWORD` in `.env` before first boot, or rotate the password and `> logs/theoos.log` after first login.
+
+#### WinSW reinstall without admin
+- Non-admin sessions can't run `sc.exe delete` (Access Denied) but `theoos-web.exe uninstall` + `install` *do* work, because WinSW talks to SCM with the original installer's privileges. Path: `.\theoos-web.exe uninstall ; Start-Sleep 5 ; .\theoos-web.exe install ; .\theoos-web.exe start`. Orphan python processes from the restart loop are SYSTEM-owned and survive — only `taskkill /F /T /PID <pid>` from an elevated shell, or a reboot, removes them.
 
 ---
 
