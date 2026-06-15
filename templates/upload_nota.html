@@ -198,7 +198,8 @@
             <td class="font-roboto" style="text-align: center; color: var(--muted);">{{ c.itens | length }}</td>
             <td style="text-align: right;" onclick="event.stopPropagation();">
               <div style="display: flex; justify-content: flex-end; gap: 6px;">
-                <a href="/upload_nota?cupom_id={{ c.id }}" class="btn btn-ghost btn-sm" style="padding: 6px 12px; height: 30px;">🔍 Ver /{% if is_admin %}<form action="/upload_nota/deletar/{{ c.id }}" method="POST" style="display:inline;margin:0">{% endif %}e="display:inline;margin:0">
+                <a href="/upload_nota?cupom_id={{ c.id }}" class="btn btn-ghost btn-sm" style="padding: 6px 12px; height: 30px;">🔍 Ver</a>
+                {% if is_admin %}<form action="/upload_nota/deletar/{{ c.id }}" method="POST" style="display:inline;margin:0">{% endif %}
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-terra btn-sm" style="padding: 6px 12px; height: 30px;" onclick="return confirm('Remover este cupom e todos os seus itens?')">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Excluir

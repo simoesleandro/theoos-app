@@ -205,10 +205,11 @@
                   data-payload='{{ {"id": item.id, "item": item.item, "quantidade": item.quantidade, "unidade": item.unidade, "categoria": item.categoria, "marca": item.marca or ""} | tojson }}'>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button type="button" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')" class="btn btn-success btn-sm">Bai{% if is_admin %}<form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">{% endif %}e="display:inline;margin:0">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</button>
-          </form>
+                <button type="button" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')" class="btn btn-success btn-sm">Dar baixa</button>
+                {% if is_admin %}<form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">{% endif %}
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</button>
+                </form>
               </div>
             </td>
           </tr>
@@ -290,7 +291,8 @@
 {% if itens_comprados %}
 <div class="panel reveal" style="opacity:.7">
   <div class="panel-header">
-    <div class="panel-title" style="color:var(--m{% if is_admin %}<form action="/lista/limpar" method="POST">{% endif %}lista/limpar" method="POST">
+    <div class="panel-title" style="color:var(--muted)">Itens Concluídos</div>
+    {% if is_admin %}<form action="/lista/limpar" method="POST" style="display:inline;margin:0">{% endif %}
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="panel-action" style="color:var(--terra)">Limpar tudo</button>
     </form>
@@ -326,7 +328,7 @@
             <td>
               <span class="chip {{ chip_class(item.categoria) }}" style="opacity:0.5">{{ item.categoria }}</span>
             </td>
-  {% if is_admin %}<form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">{% endif %}em.id }}" method="POST" style="display:inline;margin:0">
+  {% if is_admin %}<form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">{% endif %}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn-icon" onclick="return confirm('Remover {{ item.item | e }}?')" title="Remover" style="background:transparent;border:none;cursor:pointer;color:var(--terra);padding:6px">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
