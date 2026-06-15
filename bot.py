@@ -9,7 +9,6 @@ import time
 from datetime import datetime, date
 import telebot
 
-# Força UTF-8 no stdout/stderr para evitar UnicodeEncodeError com emojis no Windows
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from dotenv import load_dotenv
@@ -20,8 +19,11 @@ from app import app, db, Financas, ItemGasto, ListaCompras, Conta, ContaReceber,
 from theoos import telegram_lista
 from theoos import telegram_format
 from theoos.audit import log_action
+from theoos.logging_setup import configure as configure_logging, get_logger
 
 load_dotenv()
+configure_logging()
+log = get_logger(__name__)
 
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
@@ -85,7 +87,7 @@ def alertar_contas_vencendo():
     from theoos import recurring
 
     if not TELEGRAM_CHAT_ID:
-        print("Alerta contas: TELEGRAM_CHAT_ID não configurado.")
+        log.warning("Alerta contas: TELEGRAM_CHAT_ID não configurado.")
         return False
 
     with app.app_context():
@@ -101,7 +103,7 @@ def alertar_contas_vencendo():
                 _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
                 enviado = True
             except Exception as e:
-                print(f"Erro alerta contas vencidas: {e}")
+                log.exception("Erro alerta contas vencidas: %s", e)
 
         for dias in days_list:
             contas = recurring.contas_due_for_reminder(db, Conta, dias)
@@ -114,7 +116,7 @@ def alertar_contas_vencendo():
                 _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
                 enviado = True
             except Exception as e:
-                print(f"Erro alerta contas: {e}")
+                log.exception("Erro alerta contas: %s", e)
         return enviado
 
 
@@ -129,7 +131,7 @@ def alertar_variacao_precos():
         try:
             _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
         except Exception as e:
-            print(f"Erro alerta preços: {e}")
+            log.exception("Erro alerta preços: %s", e)
 
 
 def verificar_orcamentos(categorias):
@@ -160,7 +162,7 @@ def verificar_orcamentos(categorias):
     try:
         _html_send(TELEGRAM_CHAT_ID, msg, disable_web_page_preview=True)
     except Exception as e:
-        print(f"Erro alerta orçamento: {e}")
+        log.exception("Erro alerta orçamento: %s", e)
 
 
 def _run_daily_alerts():
@@ -190,7 +192,7 @@ def _scheduler_loop():
                             telegram_format.format_recorrencia_mes_html(n),
                         )
                 except Exception as e:
-                    print(f"Recorrência bot: {e}")
+                    log.exception("Recorrência bot: %s", e)
         time.sleep(50)
 
 threading.Thread(target=_scheduler_loop, daemon=True).start()
@@ -201,7 +203,7 @@ def _catch_up_reminders_on_start():
     time.sleep(5)
     ultimo = _load_reminder_last_sent()
     if _daily_reminder_due(ultimo, datetime.now()):
-        print("ThéoOS: lembretes do dia em atraso — enviando agora...")
+        log.info("ThéoOS: lembretes do dia em atraso — enviando agora...")
         _run_daily_alerts()
 
 
@@ -255,7 +257,7 @@ def _enviar_lista_formatada(chat_id):
             return
         telegram_lista.send_lista_message(bot, chat_id, itens, total_estimado=total)
     except Exception as e:
-        print(f"ERRO LISTA TELEGRAM: {e}")
+        log.exception("ERRO LISTA TELEGRAM: %s", e)
         bot.send_message(chat_id, "❌ Erro ao enviar a lista. Tente novamente em instantes.")
 
 
@@ -423,7 +425,7 @@ def callback_menu(call):
         bot.answer_callback_query(call.id, toast)
         _executar_menu_acao(chat_id, cmd_key)
     except Exception as e:
-        print(f"ERRO CALLBACK MENU: {e}")
+        log.exception("ERRO CALLBACK MENU: %s", e)
         traceback.print_exc()
         bot.answer_callback_query(call.id, "Erro ao processar.", show_alert=True)
 
@@ -460,7 +462,13 @@ def ler_nota_fiscal(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         img_bytes = bot.download_file(file_info.file_path)
 
-              # 2. Deduplicação por hash MD5 (com fallback se coluna ainda não existir)
+        try:
+            from theoos.image_utils import normalize_image_for_gemini
+
+            img_bytes, _ = normalize_image_for_gemini(img_bytes, "telegram.jpg")
+        except Exception as e:
+            log.warning("Falha ao normalizar imagem do Telegram: %s", e)
+
         foto_hash = hashlib.md5(img_bytes).hexdigest()
         try:
             with app.app_context():
@@ -511,7 +519,7 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
             contents=[prompt, image_part]
         )
 
-        print("🧐 RESPOSTA GEMINI:\n", resposta.text)
+        log.debug("🧐 RESPOSTA GEMINI:\n%s", resposta.text)
 
         # 5. Parse JSON — remove eventuais marcações de markdown
         texto_limpo = resposta.text.strip()
@@ -592,11 +600,11 @@ Retorne SOMENTE JSON puro, sem markdown, sem texto extra:
 
     except json.JSONDecodeError as e:
         erro = f"❌ A IA não retornou JSON válido.\nResposta: {resposta.text[:300] if 'resposta' in dir() else 'sem resposta'}"
-        print(f"ERRO JSON: {e}")
+        log.exception("ERRO JSON: %s", e)
         bot.send_message(chat_id, erro)
     except Exception as e:
         tb = traceback.format_exc()
-        print(f"ERRO FOTO:\n{tb}")
+        log.error("ERRO FOTO:\n%s", tb)
         _html_send(chat_id, telegram_format.format_erro_html("Erro ao processar cupom", f"<code>{type(e).__name__}: {str(e)[:200]}</code>"))
 
 
@@ -638,7 +646,7 @@ Retorne JSON: {{"itens":[{{"nome":"Batata","quantidade":2.0,"unidade":"kg","cate
             _html_reply(message, telegram_format.format_erro_html("Não entendi", "Tente descrever os itens novamente."))
 
     except Exception as e:
-        print(f"ERRO VOZ: {e}")
+        log.exception("ERRO VOZ: %s", e)
         _html_reply(message, telegram_format.format_erro_html("Erro ao processar áudio"))
 
 
@@ -681,7 +689,7 @@ Retorne JSON: {{"itens":[{{"nome":"Leite","quantidade":2.0,"unidade":"un","categ
         _html_send(chat_id, telegram_format.format_lista_itens_ok_html(novos_itens, via="lista"))
         return True
     except Exception as e:
-        print(f"ERRO ADD LISTA: {e}")
+        log.exception("ERRO ADD LISTA: %s", e)
         _html_send(chat_id, telegram_format.format_erro_html("Erro ao adicionar item"))
         return False
 
@@ -803,7 +811,7 @@ def callback_lista(call):
                 disable_web_page_preview=True,
             )
     except Exception as e:
-        print(f"ERRO CALLBACK LISTA: {e}")
+        log.exception("ERRO CALLBACK LISTA: %s", e)
         bot.answer_callback_query(call.id, "Erro ao processar.", show_alert=True)
 
 
@@ -864,7 +872,7 @@ Retorne JSON: {{"itens":[{{"nome":"Batata","quantidade":2.0,"unidade":"kg","cate
             _html_reply(message, telegram_format.format_erro_html("Não entendi", "Descreva o item que deseja comprar."))
 
     except Exception as e:
-        print(f"ERRO TEXTO: {e}")
+        log.exception("ERRO TEXTO: %s", e)
         _html_reply(message, telegram_format.format_erro_html("Erro ao processar mensagem"))
 
 
@@ -876,13 +884,13 @@ if __name__ == '__main__':
         _instance_lock.bind(("127.0.0.1", 48721))
         _instance_lock.listen(1)
     except OSError:
-        print("Outra instancia do bot ThéoOS ja esta em execucao. Saindo.")
+        log.warning("Outra instancia do bot ThéoOS ja esta em execucao. Saindo.")
         sys.exit(0)
 
-    print("ThéoOS Bot online...")
+    log.info("ThéoOS Bot online...")
     while True:
         try:
             bot.polling(non_stop=True, interval=0, timeout=20)
         except Exception as e:
-            print(f"Erro no polling do bot (reiniciando em 5 segundos): {e}")
+            log.exception("Erro no polling do bot (reiniciando em 5 segundos): %s", e)
             time.sleep(5)

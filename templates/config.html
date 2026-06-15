@@ -19,6 +19,7 @@
     </div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="set_pin">
         <div class="form-row-2">
           <div class="form-group" style="margin-bottom:0">
@@ -36,6 +37,7 @@
       </form>
       {% if pin_enabled %}
       <form method="POST" class="settings-actions" style="margin-top:var(--space-2)">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="clear_pin">
         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover PIN? O painel ficará aberto na rede local.')">Remover PIN</button>
       </form>
@@ -48,6 +50,7 @@
     <div class="panel-header"><div class="panel-title">Lembretes no Telegram</div></div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="reminders">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label" for="reminder_days">Dias antes do vencimento</label>
@@ -63,6 +66,7 @@
     <div class="panel-header"><div class="panel-title">Notificações no navegador</div></div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="web_notify">
         <label style="display:flex;align-items:center;gap:10px;font-size:var(--text-sm);cursor:pointer">
           <input type="checkbox" name="web_notify" {% if web_notify %}checked{% endif %} style="width:20px;height:20px;accent-color:var(--brand)">
@@ -80,6 +84,7 @@
     <div class="panel-header"><div class="panel-title">Aparência</div></div>
     <div class="panel-body">
       <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="theme">
         <label class="form-label" for="theme">Tema do painel</label>
         <select id="theme" name="theme" class="form-select" onchange="this.form.submit()" style="max-width:240px">
@@ -98,6 +103,7 @@
         Baixar backup (.zip)
       </a>
       <form method="POST" action="{{ url_for('config_restore') }}" enctype="multipart/form-data" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="file-field">
           <label class="form-label" for="backup-file">Restaurar de arquivo</label>
           <input type="file" id="backup-file" name="backup" accept=".zip" required>
@@ -111,6 +117,7 @@
     <div class="panel-header"><div class="panel-title">Contas fixas mensais</div></div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="recurring_add">
         <div class="form-row-recurring">
           <div class="form-group" style="margin-bottom:0">
@@ -144,6 +151,7 @@
         </div>
       </form>
       <form method="POST" style="margin-top:var(--space-4)">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="recurring_run">
         <button type="submit" class="btn btn-ghost btn-sm">Gerar lançamentos deste mês</button>
       </form>

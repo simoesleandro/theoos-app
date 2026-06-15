@@ -23,6 +23,7 @@
       <div class="actions-overflow-menu">
         {% if itens_comprados %}
         <form action="/lista/limpar" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Remover todos os itens concluídos?')">Limpar concluídos</button>
         </form>
         {% endif %}
@@ -44,6 +45,7 @@
   </div>
   <div class="panel-body">
     <form action="/lista/add" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="add-form-grid">
         <div class="form-group autocomplete-wrap" style="margin-bottom:0">
           <label class="form-label">Item</label>
@@ -141,7 +143,10 @@
         <div class="lista-card-actions">
           <button type="button" class="btn btn-ghost btn-sm btn-editar-lista" data-payload='{{ {"id": item.id, "item": item.item, "quantidade": item.quantidade, "unidade": item.unidade, "categoria": item.categoria, "marca": item.marca or ""} | tojson }}'>Editar</button>
           <button type="button" class="btn btn-success btn-sm" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')">Dar baixa</button>
-          <a href="/lista/delete/{{ item.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</a>
+          <form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</button>
+          </form>
         </div>
       </article>
       {% endfor %}
@@ -201,7 +206,10 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
                 <button type="button" onclick="abrirModal('{{ item.id }}','{{ item.item | e }}','{{ item.quantidade }}')" class="btn btn-success btn-sm">Baixa</button>
-                <a href="/lista/delete/{{ item.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</a>
+                <form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ item.item | e }}?')">Remover</button>
+          </form>
               </div>
             </td>
           </tr>
@@ -285,6 +293,7 @@
   <div class="panel-header">
     <div class="panel-title" style="color:var(--muted)">Concluídos</div>
     <form action="/lista/limpar" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="panel-action" style="color:var(--terra)">Limpar tudo</button>
     </form>
   </div>
@@ -320,10 +329,12 @@
               <span class="chip {{ chip_class(item.categoria) }}" style="opacity:0.5">{{ item.categoria }}</span>
             </td>
             <td style="text-align: right;">
-              <a href="/lista/delete/{{ item.id }}" class="btn-icon"
-                 onclick="return confirm('Remover {{ item.item | e }}?')" title="Remover">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-              </a>
+              <form action="/lista/delete/{{ item.id }}" method="POST" style="display:inline;margin:0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-icon" onclick="return confirm('Remover {{ item.item | e }}?')" title="Remover" style="background:transparent;border:none;cursor:pointer;color:var(--terra);padding:6px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                </button>
+              </form>
             </td>
           </tr>
           {% endfor %}
@@ -362,6 +373,7 @@
     <div class="modal-title" id="modal-editar-titulo">Editar Item</div>
     <div class="modal-sub">Ajuste os detalhes do produto</div>
     <form id="form-editar" action="" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group autocomplete-wrap">
         <label class="form-label">Item / Produto</label>
         <input id="editar-item" type="text" name="item" class="form-input" required autocomplete="off">
@@ -429,7 +441,19 @@ function confirmarBaixa() {
   const qtd = document.getElementById('modal-qtd').value;
   const preco = document.getElementById('modal-preco').value;
   if (!qtd || !preco) { alert('Preencha quantidade e valor.'); return; }
-  window.location.href = `/comprado/${itemId}?qtd=${qtd}&preco=${preco}`;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/comprado/${itemId}?qtd=${encodeURIComponent(qtd)}&preco=${encodeURIComponent(preco)}`;
+  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  if (csrfMeta) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'csrf_token';
+    input.value = csrfMeta.content;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
 }
 
 function abrirModalEditar(id, nome, qtd, unidade, categoria, marca) {

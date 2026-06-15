@@ -25,6 +25,7 @@
   </div>
   <div class="panel-body">
     <form action="/categorias" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="add-form-row">
         <input type="text" name="nome" id="nova-cat-input" class="form-input"
                placeholder="Ex: Saúde, Educação, Lazer..."
@@ -198,6 +199,7 @@
     <div class="modal-title">Renomear Categoria</div>
     <div class="modal-sub">O novo nome será atualizado em todos os registros vinculados.</div>
     <form id="edit-form" action="" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label class="form-label">Novo Nome</label>
         <input type="text" name="nome" id="edit-nome" class="form-input" maxlength="50" required autofocus>
@@ -222,6 +224,7 @@
       <p style="font-size: 12px; color: var(--muted);">Isso inclui contas a pagar, contas a receber, cupons e lista de compras.</p>
     </div>
     <form id="delete-form" action="" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-actions">
         <button type="button" onclick="closeDeleteModal(null)" class="btn btn-ghost">Cancelar</button>
         <button type="submit" class="btn btn-terra">Excluir Mesmo Assim</button>

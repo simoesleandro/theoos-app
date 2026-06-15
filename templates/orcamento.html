@@ -24,6 +24,7 @@
       </div>
       <div class="panel-body">
         <form action="/orcamento" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="orc-form-grid">
             <div class="form-group" style="margin-bottom:0">
               <label class="form-label">Categoria</label>

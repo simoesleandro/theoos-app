@@ -9,6 +9,10 @@
 {% endwith %}
 {% endmacro %}
 
+{% macro csrf_field() %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endmacro %}
+
 {% macro page_header(title, subtitle='', actions='') %}
 <div class="page-header reveal">
   <div>

@@ -23,6 +23,7 @@
   </div>
   <div class="panel-body">
     <form action="/contas" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label" for="nome">Nome</label>
@@ -138,8 +139,14 @@
                   <button type="button" onclick="previewMedia('{{ url_for('static', filename='uploads/boletos/' + conta.foto_path) }}')" class="btn btn-ghost btn-sm">Anexo</button>
                   {% endif %}
                   <button type="button" onclick="openEditModal('{{ conta.id }}', '{{ conta.nome | e }}', '{{ conta.valor }}', '{{ conta.data_vencimento.strftime('%Y-%m-%d') }}', '{{ conta.categoria | e }}', '{{ conta.foto_path or '' }}')" class="btn btn-ghost btn-sm">Editar</button>
-                  <a href="/contas/deletar/{{ conta.id }}" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ conta.nome | e }}?')">Excluir</a>
-                  <a href="/pagar_conta/{{ conta.id }}" class="btn btn-outline btn-sm" onclick="return confirm('Pagar {{ conta.valor | dinheiro }}?')">Pagar</a>
+                  <form action="/contas/deletar/{{ conta.id }}" method="POST" style="display:inline;margin:0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remover {{ conta.nome | e }}?')">Excluir</button>
+                  </form>
+                  <form action="/pagar_conta/{{ conta.id }}" method="POST" style="display:inline;margin:0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('Pagar {{ conta.valor | dinheiro }}?')">Pagar</button>
+                  </form>
                 </div>
               </td>
             </tr>
@@ -208,6 +215,7 @@
     <h2 class="modal-title" id="edit-modal-title">Editar conta</h2>
     <p class="modal-sub">Altere os dados do boleto</p>
     <form id="edit-form" action="" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label class="form-label" for="edit-nome">Nome</label>
         <input type="text" name="nome" id="edit-nome" class="form-input" required>

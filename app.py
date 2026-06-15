@@ -9,15 +9,45 @@ from collections import defaultdict
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, redirect, url_for, request, make_response, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import text, event
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types as genai_types
 
+from theoos.logging_setup import configure as configure_logging, get_logger
+from theoos.image_utils import HEIC_SUPPORTED, HEIC_MIME, detect_mime_from_filename, normalize_image_for_gemini
+
 load_dotenv()
+configure_logging()
+log = get_logger(__name__)
+
+load_dotenv()
+configure_logging()
+log = get_logger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'theoos-secret-2025')
+
+_secret_key = os.getenv('SECRET_KEY', '').strip()
+if not _secret_key:
+    _secret_key_path = os.path.join(app.instance_path, 'secret_key')
+    if os.path.isfile(_secret_key_path):
+        with open(_secret_key_path, 'r', encoding='utf-8') as f:
+            _secret_key = f.read().strip()
+    else:
+        import secrets as _secrets
+        _secret_key = _secrets.token_hex(32)
+        os.makedirs(app.instance_path, exist_ok=True)
+        with open(_secret_key_path, 'w', encoding='utf-8') as f:
+            f.write(_secret_key)
+        log.warning("SECRET_KEY ausente no .env — gerada chave aleatória em %s", _secret_key_path)
+app.secret_key = _secret_key
+
+app.config['WTF_CSRF_TIME_LIMIT'] = 60 * 60 * 8
+app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
+app.config['WTF_CSRF_SSL_STRICT'] = False
+
+csrf = CSRFProtect(app)
 
 # Gemini client (compartilhado com bot.py)
 _gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
@@ -58,6 +88,14 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///theoos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+
+
+def _set_sqlite_pragmas(dbapi_connection, _connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 
 # ── MODELS ────────────────────────────────────────────────────────────────────
@@ -147,6 +185,7 @@ class Categoria(db.Model):
 
 
 with app.app_context():
+    event.listen(db.engine, "connect", _set_sqlite_pragmas)
     db.create_all()
     # Pre-populate Categoria table if empty
     try:
@@ -161,7 +200,7 @@ with app.app_context():
                 db.session.add(Categoria(nome=cat_nome))
             db.session.commit()
     except Exception as e:
-        print(f"Erro ao pre-popular categorias: {e}")
+        log.exception("Erro ao pre-popular categorias: %s", e)
     from theoos.db_migrate import run_migrations
     from theoos.recurring import run_monthly_generation
     run_migrations(db)
@@ -169,11 +208,11 @@ with app.app_context():
         from theoos import produtos as produtos_svc
         produtos_svc.seed_catalog_from_history(db, Produto, ItemGasto)
     except Exception as e:
-        print(f"Seed catálogo produtos: {e}")
+        log.exception("Seed catálogo produtos: %s", e)
     try:
         run_monthly_generation(db, Conta, ContaReceber)
     except Exception as e:
-        print(f"Recorrência mensal: {e}")
+        log.exception("Recorrência mensal: %s", e)
     # Migrations legadas para colunas antigas
     with db.engine.connect() as conn:
         try:
@@ -287,6 +326,13 @@ def inject_global_data():
 
 
 # ── ROUTES ────────────────────────────────────────────────────────────────────
+
+@app.route('/health')
+@app.route('/favicon.ico')
+def favicon():
+    from flask import send_from_directory
+    return send_from_directory(app.static_folder, 'icons/favicon.svg', mimetype='image/svg+xml')
+
 
 @app.route('/')
 def index():
@@ -533,7 +579,7 @@ def lista_compras():
                            cesta_lojas=cesta_lojas)
 
 
-@app.route('/comprado/<int:id>')
+@app.route('/comprado/<int:id>', methods=['POST'])
 def marcar_comprado(id):
     qtd_comprada = float(request.args.get('qtd', 0))
     valor_pago = float(request.args.get('preco', '0').replace(',', '.'))
@@ -816,7 +862,7 @@ def pesquisa():
         
         itens_populares = [item.nome_item for item in popular_items_query if item.nome_item and len(item.nome_item) <= 25]
     except Exception as e:
-        print(f"Erro ao buscar itens populares: {e}")
+        log.exception("Erro ao buscar itens populares: %s", e)
         itens_populares = []
         
     # Fallback default items se estiver vazio ou com poucos registros
@@ -988,7 +1034,7 @@ def editar_conta(id):
     return redirect(url_for('contas'))
 
 
-@app.route('/contas/deletar/<int:id>', methods=['POST', 'GET'])
+@app.route('/contas/deletar/<int:id>', methods=['POST'])
 def deletar_conta(id):
     conta = db.session.get(Conta, id)
     if conta:
@@ -1007,7 +1053,7 @@ def deletar_conta(id):
     return redirect(url_for('contas'))
 
 
-@app.route('/pagar_conta/<int:id>')
+@app.route('/pagar_conta/<int:id>', methods=['POST'])
 def pagar_conta(id):
     conta = db.session.get(Conta, id)
     if conta:
@@ -1127,7 +1173,7 @@ def editar_recebivel(id):
     return redirect(url_for('receber'))
 
 
-@app.route('/receber/deletar/<int:id>', methods=['POST', 'GET'])
+@app.route('/receber/deletar/<int:id>', methods=['POST'])
 def deletar_recebivel(id):
     recebivel = db.session.get(ContaReceber, id)
     if recebivel:
@@ -1146,7 +1192,7 @@ def deletar_recebivel(id):
     return redirect(url_for('receber'))
 
 
-@app.route('/receber/dar_baixa/<int:id>')
+@app.route('/receber/dar_baixa/<int:id>', methods=['POST'])
 def dar_baixa_recebivel(id):
     recebivel = db.session.get(ContaReceber, id)
     if recebivel:
@@ -1266,7 +1312,7 @@ def add_from_history():
     return redirect(url_for('lista_compras'))
 
 
-@app.route('/lista/delete/<int:id>')
+@app.route('/lista/delete/<int:id>', methods=['POST'])
 def lista_delete(id):
     item = db.session.get(ListaCompras, id)
     if item:
@@ -1715,7 +1761,7 @@ def upload_nota():
             Financas.tipo == 'debito'
         ).join(ItemGasto).group_by(Financas.id).order_by(Financas.data.desc()).limit(15).all()
     except Exception as e:
-        print(f"Erro ao buscar cupons recentes: {e}")
+        log.exception("Erro ao buscar cupons recentes: %s", e)
         recentes = []
 
     selected_cupom = None
@@ -1733,6 +1779,20 @@ def upload_nota():
 
     img_bytes = arquivo.read()
 
+    filename_original = arquivo.filename or ""
+    mime_detectado = detect_mime_from_filename(filename_original)
+
+    if mime_detectado in HEIC_MIME and HEIC_SUPPORTED:
+        try:
+            img_bytes, _ = normalize_image_for_gemini(img_bytes, filename_original)
+        except Exception as e:
+            log.exception("Falha ao converter HEIC: %s", e)
+            flash('Não foi possível ler a imagem HEIC.', 'danger')
+            return redirect(url_for('upload_nota'))
+    elif mime_detectado == "image/heic" and not HEIC_SUPPORTED:
+        flash('Formato HEIC não suportado — instale pillow-heif ou use JPG/PNG.', 'warning')
+        return redirect(url_for('upload_nota'))
+
     # Deduplicação MD5
     foto_hash = hashlib.md5(img_bytes).hexdigest()
     try:
@@ -1747,6 +1807,7 @@ def upload_nota():
     lista_str = ", ".join(f"[ID:{p.id} {p.item}]" for p in pendentes) or "Lista vazia."
 
     from theoos import produtos as produtos_svc
+    from theoos.image_utils import detect_mime_from_filename, normalize_image_for_gemini
     catalog = produtos_svc.build_catalog(db, ItemGasto, Produto)
     catalog_block = produtos_svc.catalog_prompt_block(catalog)
 
@@ -1759,7 +1820,13 @@ def upload_nota():
 
     # Detecta MIME type pela extensão
     ext = arquivo.filename.rsplit('.', 1)[-1].lower()
-    mime = 'image/png' if ext == 'png' else 'image/jpeg'
+    mime = detect_mime_from_filename(arquivo.filename)
+    if mime == 'image/heic' and HEIC_SUPPORTED:
+        img_bytes_normalized, mime = normalize_image_for_gemini(img_bytes, arquivo.filename)
+        img_bytes = img_bytes_normalized
+    elif mime == 'image/heic':
+        flash('Formato HEIC não suportado — instale pillow-heif ou use JPG/PNG.', 'warning')
+        return redirect(url_for('upload_nota'))
     image_part = genai_types.Part.from_bytes(data=img_bytes, mime_type=mime)
 
     prompt = f"""
@@ -1805,7 +1872,7 @@ Retorne SOMENTE JSON puro:
             f.write(img_bytes)
         foto_path = filename
     except Exception as e:
-        print(f"Erro ao salvar arquivo de cupom: {e}")
+        log.exception("Erro ao salvar arquivo de cupom: %s", e)
         foto_path = None
 
     # Processa e tenta converter a data retornada pela IA (combinando com a hora atual)
@@ -1893,7 +1960,7 @@ def editar_cupom_header(cupom_id):
     return redirect(url_for('upload_nota', cupom_id=cupom_id))
 
 
-@app.route('/upload_nota/deletar/<int:cupom_id>', methods=['POST', 'GET'])
+@app.route('/upload_nota/deletar/<int:cupom_id>', methods=['POST'])
 def deletar_cupom(cupom_id):
     cupom = db.session.get(Financas, cupom_id)
     if cupom:
