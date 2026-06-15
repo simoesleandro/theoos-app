@@ -153,9 +153,31 @@ Retorne SOMENTE JSON puro, sem markdown:
         if texto.startswith("```"):
             texto = texto.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         dados = json.loads(texto)
+        _ocr_modo_usado = "gemini"
     except Exception as e:
-        flash(f"Erro ao processar imagem com IA: {e}", "danger")
-        return redirect(url_for("upload.upload_nota"))
+        from theoos.ocr_offline import (
+            OCRError,
+            TesseractNotFoundError,
+            is_available,
+            parse_receipt_offline,
+        )
+
+        if is_available():
+            try:
+                dados = parse_receipt_offline(img_bytes)
+                _ocr_modo_usado = "offline_fallback"
+                from theoos.logging_setup import get_logger
+                get_logger(__name__).warning("Gemini falhou (%s); usando Tesseract offline", e)
+            except (TesseractNotFoundError, OCRError) as oe:
+                flash(f"Erro ao processar imagem: Gemini e OCR offline indisponíveis. Detalhe: {e}", "danger")
+                return redirect(url_for("upload.upload_nota"))
+        else:
+            flash(
+                f"Erro Gemini e OCR offline não configurado. "
+                f"Instale Tesseract e pip install pytesseract para fallback. Detalhe: {e}",
+                "danger",
+            )
+            return redirect(url_for("upload.upload_nota"))
 
     # Normaliza resposta: aceita tanto {"cupons": [...]} quanto o formato legado
     # (objeto único com mercado/data/total_nota/itens) para retrocompatibilidade.

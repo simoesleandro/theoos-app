@@ -9,3 +9,4 @@ python-dotenv==1.0.1
 pillow==10.4.0
 pillow-heif==0.21.0
 fpdf2==2.7.9
+# Opcional: pip install pytesseract (e instale o binario tesseract no sistema) para fallback OCR offline
