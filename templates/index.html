@@ -180,6 +180,35 @@
 </div>
 {% endif %}
 
+{% if tendencias_cat %}
+<div class="panel reveal" style="margin-top:18px">
+  <div class="panel-header">
+    <div class="panel-title">Tendência mensal por categoria</div>
+    <a href="/relatorios" class="panel-action">Relatório</a>
+  </div>
+  <div style="padding:14px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px">
+    {% for t in tendencias_cat %}
+    <div class="spark-cat">
+      <div class="spark-head">
+        <div class="spark-cat-name">{{ t.categoria }}</div>
+        <div class="spark-cat-variacao {% if t.variacao_pct > 5 %}up{% elif t.variacao_pct < -5 %}down{% endif %}">
+          {% if t.variacao_pct > 0 %}+{% endif %}{{ t.variacao_pct }}%
+        </div>
+      </div>
+      <div class="spark-tot">R$ {{ '%.0f' % t.serie[-1].valor }}</div>
+      <svg class="spark" viewBox="0 0 120 40" preserveAspectRatio="none" aria-label="Tendência 6 meses">
+        <polyline points="{{ t.polyline }}" fill="none" stroke="var(--brand)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        {% for p in t.polyline.split(' ') %}<circle cx="{{ p.split(',')[0] }}" cy="{{ p.split(',')[1] }}" r="1.5" fill="var(--brand)"/>{% endfor %}
+      </svg>
+      <div class="spark-months">
+        {% for s in t.serie %}<span>{{ s.mes[5:] }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="content-grid reveal">
   <div class="left-col">
     <div class="panel">

@@ -14,6 +14,24 @@ from theoos import insights
 bp = Blueprint("dashboard", __name__)
 
 
+def _sparkline_data(db, Financas, ItemGasto, meses=6, top_n=5):
+    raw = insights.monthly_spending_by_category(db, Financas, ItemGasto, meses=meses, top_n=top_n)
+    out = []
+    for t in raw:
+        serie = t["serie"]
+        if not serie:
+            continue
+        maxv = max((s["valor"] for s in serie), default=1.0) or 1.0
+        n = len(serie)
+        pts = []
+        for i, s in enumerate(serie):
+            x = i * (120 / (n - 1)) if n > 1 else 60.0
+            y = 38 - (s["valor"] / maxv * 36) if maxv > 0 else 38
+            pts.append(f"{x:.1f},{y:.1f}")
+        out.append({**t, "polyline": " ".join(pts)})
+    return out
+
+
 @bp.route("/")
 def index():
     hoje = date.today()
@@ -126,6 +144,10 @@ def index():
     orcamento_status = insights.budget_status(db, Orcamento, ItemGasto, Financas)
     alertas_preco = insights.price_spike_alerts(db, ItemGasto, Financas)[:5]
     habitos_sumidos = insights.missing_habit_products(db, ItemGasto, Financas)[:4]
+    try:
+        tendencias_cat = _sparkline_data(db, Financas, ItemGasto, meses=6, top_n=5)
+    except Exception:
+        tendencias_cat = []
 
     return render_template(
         "index.html",
@@ -153,6 +175,7 @@ def index():
         orcamento_status=orcamento_status,
         alertas_preco=alertas_preco,
         habitos_sumidos=habitos_sumidos,
+        tendencias_cat=tendencias_cat,
     )
 
 

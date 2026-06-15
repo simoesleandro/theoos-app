@@ -1,8 +1,9 @@
 """Detetive de preços 2.0 — cesta, alertas, hábitos."""
+from calendar import monthrange
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 
 def _mercado_from_nota(descricao):
@@ -464,3 +465,77 @@ def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
     rows = list(by_store_unit.values())
     rows.sort(key=lambda x: x["preco"])
     return rows[:limit]
+
+
+def monthly_spending_by_category(db, Financas, ItemGasto, meses=6, top_n=5):
+    """Tendência mensal (últimos N meses, incluindo o atual) para as top-N categorias.
+
+    Returns:
+        list[dict] com chaves:
+            categoria: str
+            total: float (gasto total no período)
+            serie: list[dict] [{mes: 'YYYY-MM', valor: float}]
+            variacao_pct: float (variação do último mês vs penúltimo)
+    """
+    hoje = date.today()
+    y, m = hoje.year, hoje.month
+    meses_lista: list[date] = []
+    for _ in range(meses):
+        meses_lista.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    meses_lista.reverse()
+    primeiro = meses_lista[0]
+    _, ultimo_dia = monthrange(hoje.year, hoje.month)
+    ultimo = datetime(hoje.year, hoje.month, ultimo_dia, 23, 59, 59)
+
+    top_cats = (
+        db.session.query(
+            ItemGasto.categoria,
+            func.coalesce(func.sum(ItemGasto.valor_total), 0.0).label("total"),
+        )
+        .join(Financas)
+        .filter(Financas.tipo == "debito", Financas.data >= primeiro, Financas.data <= ultimo)
+        .group_by(ItemGasto.categoria)
+        .order_by(func.sum(ItemGasto.valor_total).desc())
+        .limit(top_n)
+        .all()
+    )
+
+    resultados: list[dict] = []
+    for cat, _ in top_cats:
+        serie: list[dict] = []
+        for mes in meses_lista:
+            last_day = monthrange(mes.year, mes.month)[1]
+            dt_ini = datetime(mes.year, mes.month, 1)
+            dt_fim = datetime(mes.year, mes.month, last_day, 23, 59, 59)
+            val = (
+                db.session.query(func.coalesce(func.sum(ItemGasto.valor_total), 0.0))
+                .join(Financas)
+                .filter(
+                    Financas.tipo == "debito",
+                    Financas.data >= dt_ini,
+                    Financas.data <= dt_fim,
+                    ItemGasto.categoria == cat,
+                )
+                .scalar()
+                or 0.0
+            )
+            serie.append({"mes": mes.strftime("%Y-%m"), "valor": float(val)})
+        if len(serie) >= 2 and serie[-1]["valor"] > 0:
+            ant = serie[-2]["valor"]
+            atual = serie[-1]["valor"]
+            variacao = ((atual - ant) / ant * 100) if ant > 0 else 0.0
+        else:
+            variacao = 0.0
+        resultados.append(
+            {
+                "categoria": cat,
+                "total": sum(s["valor"] for s in serie),
+                "serie": serie,
+                "variacao_pct": round(variacao, 1),
+            }
+        )
+    return resultados
