@@ -126,9 +126,11 @@ def upload_nota():
     image_part = genai_types.Part.from_bytes(data=img_bytes, mime_type=mime)
 
     prompt = f"""
-Analise o cupom fiscal e extraia todos os itens comprados.
+Analise a imagem e identifique TODOS os cupons fiscais visíveis (pode haver 1 ou varios).
+Para CADA cupom, extraia os dados. Se houver apenas um cupom, retorne-o dentro do array "cupons" tambem.
+
 Cruze com a lista de compras pendentes: {lista_str}
-Se um item da lista foi comprado (mesmo com nome diferente), inclua o ID em ids_comprados.
+Se um item da lista foi comprado (mesmo com nome diferente), inclua o ID em ids_comprados do respectivo cupom.
 
 Classifique cada item em UMA categoria do sistema: [{categorias_prompt}]. Escolha a que melhor se adapta.
 
@@ -137,8 +139,8 @@ Para cada item, além de extrair o nome original/bruto impresso no cupom (no cam
 2. A marca do produto no campo "marca" (ex: "Lider", "Prato Fino", "Nestlé"). Se não houver marca identificável, retorne null.
 3. A unidade de medida do produto no campo "unidade" (use uma destas siglas: "un", "kg", "g", "l", "ml", "Cx"). Se não for evidente, use "un".
 {catalog_block.strip()}
-Retorne SOMENTE JSON puro:
-{{"mercado":"Nome","data":"DD/MM/AAAA","total_nota":0.00,"itens":[{{"nome":"NOME ORIGINAL","nome_normalizado":"Nome Limpo","marca":"Marca ou null","quantidade":1.0,"valor_unitario":0.00,"valor_total":0.00,"categoria":"Supermercado","unidade":"un"}}],"ids_comprados":[]}}
+Retorne SOMENTE JSON puro, sem markdown:
+{{"cupons":[{{"mercado":"Nome","data":"DD/MM/AAAA","total_nota":0.00,"itens":[{{"nome":"NOME ORIGINAL","nome_normalizado":"Nome Limpo","marca":"Marca ou null","quantidade":1.0,"valor_unitario":0.00,"valor_total":0.00,"categoria":"Supermercado","unidade":"un"}}],"ids_comprados":[]}}]}}
 """
     try:
         from app import _gemini_client, GEMINI_MODEL
@@ -155,16 +157,25 @@ Retorne SOMENTE JSON puro:
         flash(f"Erro ao processar imagem com IA: {e}", "danger")
         return redirect(url_for("upload.upload_nota"))
 
-    mercado = dados.get("mercado", "Desconhecido")
-    total = float(dados.get("total_nota", 0.0))
-    itens_lista = dados.get("itens", [])
-    ids_riscados = dados.get("ids_comprados", [])
+    # Normaliza resposta: aceita tanto {"cupons": [...]} quanto o formato legado
+    # (objeto único com mercado/data/total_nota/itens) para retrocompatibilidade.
+    if isinstance(dados, dict) and "cupons" in dados and isinstance(dados["cupons"], list):
+        cupons = dados["cupons"]
+    elif isinstance(dados, dict) and ("mercado" in dados or "itens" in dados):
+        cupons = [dados]
+    elif isinstance(dados, list):
+        cupons = dados
+    else:
+        cupons = []
 
-    produtos_svc.normalize_itens_ocr(db, ItemGasto, itens_lista, None)
+    if not cupons:
+        flash("Nenhum cupom detectado na imagem.", "warning")
+        return redirect(url_for("upload.upload_nota"))
 
     filename = secure_filename(
         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_cupom_{foto_hash[:8]}.{ext}"
     )
+    foto_path = None
     try:
         filepath = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
         with open(filepath, "wb") as f:
@@ -174,64 +185,80 @@ Retorne SOMENTE JSON puro:
         from theoos.logging_setup import get_logger
 
         get_logger(__name__).exception("Erro ao salvar arquivo de cupom: %s", e)
-        foto_path = None
 
-    data_str = dados.get("data", "").strip()
     agora = datetime.now()
-    data_gasto = agora
-    if data_str:
-        try:
-            parsed_date = datetime.strptime(data_str, "%d/%m/%Y")
-            data_gasto = datetime.combine(parsed_date.date(), agora.time())
-        except ValueError:
-            try:
-                if "-" in data_str:
-                    parsed_date = datetime.strptime(data_str, "%Y-%m-%d")
-                else:
-                    parsed_date = datetime.strptime(data_str, "%d/%m/%y")
-                data_gasto = datetime.combine(parsed_date.date(), agora.time())
-            except ValueError:
-                pass
+    criados_ids: list[int] = []
+    flash_msgs: list[str] = []
 
-    novo_gasto = Financas(
-        valor=total,
-        descricao=f"IA: {mercado}",
-        foto_hash=foto_hash,
-        foto_path=foto_path,
-        data=data_gasto,
-        criado_por=_current_actor(),
-    )
-    db.session.add(novo_gasto)
-    db.session.flush()
+    for cupom in cupons:
+        mercado = (cupom.get("mercado") or "Desconhecido").strip() or "Desconhecido"
+        total = float(cupom.get("total_nota", 0.0) or 0.0)
+        itens_lista = cupom.get("itens", []) or []
+        ids_riscados = cupom.get("ids_comprados", []) or []
 
-    for item in itens_lista:
-        cat = item.get("categoria", "Outros")
-        db.session.add(
-            ItemGasto(
-                financa_id=novo_gasto.id,
-                produto_id=item.get("produto_id"),
-                nome=item.get("nome", "Desconhecido"),
-                nome_normalizado=item.get("nome_normalizado"),
-                marca=item.get("marca"),
-                quantidade=float(item.get("quantidade", 1.0)),
-                valor_unitario=float(item.get("valor_unitario", 0.0)),
-                valor_total=float(item.get("valor_total", 0.0)),
-                categoria=cat,
-                unidade=item.get("unidade", "un"),
-                mercado=mercado[:80] if mercado else None,
-            )
+        itens_local = [dict(it) for it in itens_lista]
+        produtos_svc.normalize_itens_ocr(db, ItemGasto, itens_local, None)
+
+        data_str = (cupom.get("data") or "").strip()
+        data_gasto = agora
+        if data_str:
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d/%m/%y"):
+                try:
+                    parsed_date = datetime.strptime(data_str, fmt)
+                    data_gasto = datetime.combine(parsed_date.date(), agora.time())
+                    break
+                except ValueError:
+                    continue
+
+        novo_gasto = Financas(
+            valor=total,
+            descricao=f"IA: {mercado}",
+            foto_hash=foto_hash if cupom is cupons[0] else None,
+            foto_path=foto_path if cupom is cupons[0] else None,
+            data=data_gasto,
+            criado_por=_current_actor(),
         )
+        db.session.add(novo_gasto)
+        db.session.flush()
 
-    for cid in ids_riscados:
-        lc = db.session.get(ListaCompras, int(cid))
-        if lc and lc.status == "pendente":
-            lc.status = "comprado"
-            lc.marcado = False
+        for item in itens_local:
+            cat = item.get("categoria", "Outros")
+            db.session.add(
+                ItemGasto(
+                    financa_id=novo_gasto.id,
+                    produto_id=item.get("produto_id"),
+                    nome=item.get("nome", "Desconhecido"),
+                    nome_normalizado=item.get("nome_normalizado"),
+                    marca=item.get("marca"),
+                    quantidade=float(item.get("quantidade", 1.0) or 1.0),
+                    valor_unitario=float(item.get("valor_unitario", 0.0) or 0.0),
+                    valor_total=float(item.get("valor_total", 0.0) or 0.0),
+                    categoria=cat,
+                    unidade=item.get("unidade", "un") or "un",
+                    mercado=mercado[:80],
+                )
+            )
+
+        for cid in ids_riscados:
+            lc = db.session.get(ListaCompras, int(cid))
+            if lc and lc.status == "pendente":
+                lc.status = "comprado"
+                lc.marcado = False
+
+        criados_ids.append(novo_gasto.id)
+        flash_msgs.append(f"{mercado} • R$ {total:.2f} ({len(itens_local)} itens)")
 
     db.session.commit()
 
-    flash(f"Cupom de {mercado} processado! {len(itens_lista)} itens • R$ {total:.2f}", "success")
-    return redirect(url_for("upload.upload_nota", cupom_id=novo_gasto.id))
+    if len(cupons) == 1:
+        flash(f"Cupom de {flash_msgs[0]} processado!", "success")
+        return redirect(url_for("upload.upload_nota", cupom_id=criados_ids[0]))
+
+    flash(
+        f"{len(cupons)} cupons detectados: {' / '.join(flash_msgs)}",
+        "success",
+    )
+    return redirect(url_for("upload.upload_nota"))
 
 
 @bp.route("/upload_nota/editar/<int:cupom_id>", methods=["POST"])
