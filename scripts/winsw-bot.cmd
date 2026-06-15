@@ -7,7 +7,7 @@ set PYTHONUNBUFFERED=1
 set THEOOS_SERVICE=1
 
 if not defined THEOOS_PYTHON (
-  set "THEOOS_PYTHON=C:\Users\Leand\AppData\Local\Programs\Python\Python313\python.exe"
+  set "THEOOS_PYTHON=C:\Users\stife\AppData\Local\Programs\Python\Python312\python.exe"
 )
 
 if not exist "%THEOOS_PYTHON%" (

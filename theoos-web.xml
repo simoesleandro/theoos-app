@@ -16,7 +16,7 @@
 
   <env name="PYTHONUNBUFFERED" value="1"/>
   <env name="THEOOS_SERVICE" value="1"/>
-  <env name="THEOOS_PYTHON" value="C:\Users\Leand\AppData\Local\Programs\Python\Python313\python.exe"/>
+  <env name="THEOOS_PYTHON" value="C:\Users\stife\AppData\Local\Programs\Python\Python312\python.exe"/>
 
   <logpath>%BASE%\logs</logpath>
   <log mode="roll-by-size">

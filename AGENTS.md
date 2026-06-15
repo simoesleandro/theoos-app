@@ -3,7 +3,7 @@
 Persistent context for AI assistants and developers working on this repo.
 
 **Repo:** https://github.com/simoesleandro/theoos-app.git  
-**Last major update:** June 2026 — catálogo de produtos, Telegram formatado, `/ajuda` com botões.
+**Last major update:** June 2026 — multi-user + HTMX dashboard + OCR offline fallback + PWA.
 
 ---
 
@@ -116,6 +116,17 @@ theoos-web.xml / theoos-bot.xml
 - WinSW: reinstalar de `%OneDrive%\Desktop\appfamiliar` se serviço apontar path antigo.
 - Removida rota `/lista/salvar_tudo` (cache do browser pode dar 404 até hard refresh).
 
+### Phase 0–3 — Hardening & refactor (June 2026)
+
+**Architecture rewrite** — 17 commits, ~50 files touched.
+
+- **Phase 0 (hygiene/security):** pinned `requirements.txt` + `requirements-dev.txt`; `pyproject.toml` (ruff/mypy/pytest); pre-commit; CI; `theoos/logging_setup.py` replaces 25 `print()` calls (rotating handler, 5×10MB); auto-gen `SECRET_KEY`; Flask-WTF CSRF on 27 forms; 7 destructive routes → POST-only; HEIC→JPEG (`theoos/image_utils.py`); SQLite WAL + `foreign_keys=ON`.
+- **Phase 1 (refactor):** `models.py` extracted (8 models + uninitialized `db`); `app.py` shrank 2152→286 lines; 11 blueprints covering 50 routes; `wsgi.py` with Waitress; `bot.py:19` `datetime` import fixed.
+- **Phase 2 (robustness):** bot polling backoff (`ApiTelegramException`, exponential cap 60s); `theoos/extensions.py` (limiter + csrf uninitialized); rate-limits on `/login`, `/upload_nota`, `/api/*`; global error handler (no stack exposure); `scripts/backup.py` with `--keep`.
+- **Phase 3 (features):** PDF UTF-8 (`theoos/pdf_report.py`); multi-cupom OCR; Febraban boleto parser; OFX 1.x export; PWA icons + service worker v2; sparklines + forecast (`theoos/insights.py`); envelope budgeting with rollover (schema v6); Tesseract offline OCR fallback; CSV import with auto-detect delimiter/encoding/bank format; HTMX dashboard auto-refresh; **multi-user** with `Usuario` model (schema v7), `theoos/auth.py` rewrite, admin/viewer roles, `@admin_required` on 24 destructive routes, `/config/usuarios` page. Default admin auto-creates on first boot (password from `THEOOS_ADMIN_PASSWORD` env or random + logged warning).
+
+**Test count:** 62/62 passing.
+
 ### Phase 5 — Catálogo, Telegram pro, lembretes (June 2026)
 
 #### Catálogo de produtos (anti-duplicação OCR)
@@ -150,6 +161,7 @@ theoos-web.xml / theoos-bot.xml
 - **Manual dev:** `python app.py` (port 5000). **Production:** WinSW services, not debug mode.
 - **UI copy:** Portuguese (pt-BR). **CSS:** extend `theoos.css`, avoid inline styles in new work.
 - **Bill rows:** use `macros/bills.html` for pay/receive list pattern.
+- **Cost calibration** (lessons from the Phase 0–3 session): avoid re-reading large files (`app.py` was 2152 lines × 5+ reads = ~$0.10 wasted per re-read); keep thinking blocks ~2k tokens, not 20k; prefer 1 commit per phase over 5 small ones; respond in PT-BR but commit messages in English; do not regenerate boilerplate that already exists. Typical commit cost ~$0.10–0.20 once calibrated; first-time exploration of an unknown codebase can run $3+ without these constraints.
 
 ---
 

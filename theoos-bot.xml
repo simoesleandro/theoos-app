@@ -6,7 +6,7 @@
   <executable>C:\Users\stife\AppData\Local\Programs\Python\Python312\python.exe</executable>
   <arguments>bot.py</arguments>
   
-  <workingdirectory>C:\meus_projetos\theoos-app</workingdirectory>
+  <workingdirectory>%BASE%</workingdirectory>
   <startmode>Automatic</startmode>
   <delayedAutoStart>true</delayedAutoStart>
   
@@ -16,7 +16,7 @@
   <env name="PYTHONUNBUFFERED" value="1"/>
   <env name="THEOOS_SERVICE" value="1"/>
   
-  <logpath>C:\meus_projetos\theoos-app\logs</logpath>
+  <logpath>%BASE%\logs</logpath>
   <log mode="roll-by-size">
     <sizeThreshold>10240</sizeThreshold>
     <keepFiles>8</keepFiles>
