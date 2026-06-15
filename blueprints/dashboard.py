@@ -146,8 +146,10 @@ def index():
     habitos_sumidos = insights.missing_habit_products(db, ItemGasto, Financas)[:4]
     try:
         tendencias_cat = _sparkline_data(db, Financas, ItemGasto, meses=6, top_n=5)
+        previsao = insights.forecast_next_month(db, Financas, ItemGasto)
     except Exception:
         tendencias_cat = []
+        previsao = None
 
     return render_template(
         "index.html",
@@ -176,6 +178,7 @@ def index():
         alertas_preco=alertas_preco,
         habitos_sumidos=habitos_sumidos,
         tendencias_cat=tendencias_cat,
+        previsao=previsao,
     )
 
 

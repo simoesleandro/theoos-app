@@ -180,6 +180,30 @@
 </div>
 {% endif %}
 
+{% if previsao and previsao.categorias %}
+<div class="panel reveal" style="margin-top:18px">
+  <div class="panel-header">
+    <div class="panel-title">Previsão {{ previsao.mes_projecao }}</div>
+    <span class="tx-meta">média ponderada 3 meses</span>
+  </div>
+  <div class="panel-body" style="padding:14px 18px 18px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:1.7rem;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums">R$ {{ '%.0f' % previsao.total }}</div>
+      <div class="tx-meta">projetado para o próximo mês</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+      {% for c in previsao.categorias %}
+      <div class="forecast-row">
+        <div class="fc-name">{{ c.categoria }}</div>
+        <div class="fc-val">R$ {{ '%.0f' % c.projecao }}</div>
+        <div class="fc-meta">média 3m: R$ {{ '%.0f' % c.media_3m }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if tendencias_cat %}
 <div class="panel reveal" style="margin-top:18px">
   <div class="panel-header">

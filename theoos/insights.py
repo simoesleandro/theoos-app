@@ -539,3 +539,94 @@ def monthly_spending_by_category(db, Financas, ItemGasto, meses=6, top_n=5):
             }
         )
     return resultados
+
+
+def forecast_next_month(db, Financas, ItemGasto, meses_historico=3, top_n=5):
+    """Projeção simples de gastos do próximo mês por categoria.
+
+    Usa média ponderada dos últimos N meses (peso 3 / 2 / 1) para o mês mais
+    recente ter mais influência. Retorna top-N categorias + total projetado.
+    Útil para alertas de orçamento ("Supermercado vai estourar R$ X").
+
+    Returns:
+        {
+            "mes_projecao": "YYYY-MM",
+            "total": float,
+            "categorias": [{categoria, projecao, media_3m, historico}, ...],
+            "metodo": "media_ponderada_3m",
+        }
+    """
+    hoje = date.today()
+    if hoje.month == 12:
+        prox_y, prox_m = hoje.year + 1, 1
+    else:
+        prox_y, prox_m = hoje.year, hoje.month + 1
+    mes_proj = f"{prox_y:04d}-{prox_m:02d}"
+
+    y, m = hoje.year, hoje.month
+    meses_hist: list[date] = []
+    for _ in range(meses_historico):
+        meses_hist.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    pesos = [1, 2, 3]  # mais recente = maior peso
+    soma_pesos = sum(pesos)
+
+    top_cats = (
+        db.session.query(
+            ItemGasto.categoria,
+            func.coalesce(func.sum(ItemGasto.valor_total), 0.0).label("total"),
+        )
+        .join(Financas)
+        .filter(Financas.tipo == "debito")
+        .group_by(ItemGasto.categoria)
+        .order_by(func.sum(ItemGasto.valor_total).desc())
+        .limit(top_n)
+        .all()
+    )
+
+    categorias = []
+    total = 0.0
+    for cat, _ in top_cats:
+        serie: list[float] = []
+        historico = []
+        for mes in reversed(meses_hist):
+            last_day = monthrange(mes.year, mes.month)[1]
+            dt_ini = datetime(mes.year, mes.month, 1)
+            dt_fim = datetime(mes.year, mes.month, last_day, 23, 59, 59)
+            val = (
+                db.session.query(func.coalesce(func.sum(ItemGasto.valor_total), 0.0))
+                .join(Financas)
+                .filter(
+                    Financas.tipo == "debito",
+                    Financas.data >= dt_ini,
+                    Financas.data <= dt_fim,
+                    ItemGasto.categoria == cat,
+                )
+                .scalar()
+                or 0.0
+            )
+            serie.append(float(val))
+            historico.append({"mes": mes.strftime("%Y-%m"), "valor": float(val)})
+        if any(s > 0 for s in serie):
+            projecao = sum(s * p for s, p in zip(serie, pesos)) / soma_pesos
+        else:
+            projecao = 0.0
+        categorias.append(
+            {
+                "categoria": cat,
+                "projecao": round(projecao, 2),
+                "media_3m": round(sum(serie) / len(serie), 2) if serie else 0.0,
+                "historico": historico,
+            }
+        )
+        total += projecao
+
+    return {
+        "mes_projecao": mes_proj,
+        "total": round(total, 2),
+        "categorias": categorias,
+        "metodo": f"media_ponderada_{meses_historico}m",
+    }
