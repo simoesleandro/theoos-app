@@ -1,0 +1,72 @@
+[project]
+name = "theoos"
+version = "0.1.0"
+description = "ThéoOS — family home operating system"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["__pycache__", ".venv", "venv", "instance", "static", "templates"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "PL",  # pylint
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501",  # line length (ruff format handles)
+    "PLR0913", # too many arguments (Flask routes)
+    "PLR2004", # magic value (UI strings, valores)
+    "B008",  # function call in default argument (Flask routes)
+    "SIM108", # ternary
+    "UP031", # %-formatting in prompts (deixa legível)
+    "RUF012", # mutable class attributes (Flask-SQLAlchemy models)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "S101", "ARG", "FBT"]
+"scripts/*" = ["S", "TID"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+exclude = [
+    "instance/",
+    "static/",
+    "templates/",
+    "__pycache__/",
+    ".venv/",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+check_untyped_defs = false
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning:flask_sqlalchemy.*",
+    "ignore::DeprecationWarning:sqlalchemy.*",
+]
