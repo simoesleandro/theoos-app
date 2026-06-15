@@ -40,6 +40,7 @@ def orcamento():
 
     orcamentos = Orcamento.query.all()
     savings: dict = {}
+    envelopes: list[dict] = []
     for o in orcamentos:
         gasto = gastos_mes.get(o.categoria, 0)
         prog = insights.budget_savings_progress(
@@ -47,9 +48,52 @@ def orcamento():
         )
         if prog:
             savings[o.categoria] = prog
+        saldo_anterior = float(getattr(o, "saldo_mes_anterior", 0.0) or 0.0)
+        disponivel = float(o.limite_mensal) + saldo_anterior
+        restante = disponivel - gasto
+        envelopes.append(
+            {
+                "categoria": o.categoria,
+                "limite": float(o.limite_mensal),
+                "saldo_anterior": saldo_anterior,
+                "disponivel": disponivel,
+                "gasto": gasto,
+                "restante": restante,
+                "excedeu": restante < 0,
+                "pct": (gasto / disponivel * 100) if disponivel > 0 else 0,
+            }
+        )
+
     return render_template(
         "orcamento.html",
         orcamentos=orcamentos,
         gastos_mes=dict(gastos_mes),
         savings=savings,
+        envelopes=envelopes,
     )
+
+
+@bp.route("/orcamento/fechar", methods=["POST"])
+def fechar_mes():
+    """Fecha o mês atual: para cada orçamento, salva o saldo (limite - gasto)
+    como saldo_mes_anterior para o próximo mês. Saldos negativos são zerados
+    (não transportamos dívidas para o envelope seguinte)."""
+    hoje = date.today()
+    primeiro_dia = date(hoje.year, hoje.month, 1)
+
+    gastos_mes: dict[str, float] = defaultdict(float)
+    for item in ItemGasto.query.join(Financas).filter(Financas.data >= primeiro_dia).all():
+        gastos_mes[item.categoria or "Outros"] += item.valor_total
+
+    count = 0
+    for o in Orcamento.query.all():
+        gasto = gastos_mes.get(o.categoria, 0)
+        saldo = float(o.limite_mensal) - gasto
+        o.saldo_mes_anterior = max(saldo, 0.0)
+        count += 1
+    db.session.commit()
+    flash(
+        f"Mês fechado para {count} orçamento(s). Saldos restantes foram transportados.",
+        "success",
+    )
+    return redirect(url_for("orcamento.orcamento"))

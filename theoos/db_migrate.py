@@ -1,7 +1,7 @@
 """Migrações incrementais SQLite (schema version em app_setting)."""
 from sqlalchemy import text
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 MIGRATIONS = [
     # v1 — auditoria, config, recorrência, criado_por
@@ -59,6 +59,10 @@ MIGRATIONS = [
     );
     CREATE INDEX IF NOT EXISTS idx_produto_nome ON produto(nome);
     ALTER TABLE item_gasto ADD COLUMN produto_id INTEGER REFERENCES produto(id);
+    """,
+    # v6 — saldo do mês anterior no orçamento (envelope)
+    """
+    ALTER TABLE orcamento ADD COLUMN saldo_mes_anterior REAL NOT NULL DEFAULT 0;
     """,
 ]
 
@@ -149,6 +153,19 @@ def run_migrations(db):
                             conn.commit()
                         except Exception:
                             pass
+                        continue
+                    try:
+                        conn.execute(text(s))
+                        conn.commit()
+                    except Exception:
+                        pass
+
+            elif step == 6:
+                for stmt in MIGRATIONS[5].strip().split(";"):
+                    s = stmt.strip()
+                    if not s:
+                        continue
+                    if "orcamento" in s and "saldo_mes_anterior" in s and _column_exists(conn, "orcamento", "saldo_mes_anterior"):
                         continue
                     try:
                         conn.execute(text(s))

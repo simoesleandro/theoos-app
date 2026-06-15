@@ -8,12 +8,20 @@
 <div class="page-header reveal">
   <div>
     <h1 class="page-heading">Controle de <em>Orçamento</em></h1>
-    <p class="page-sub">Defina limites mensais por categoria e receba alertas no Telegram</p>
+    <p class="page-sub">Defina limites mensais por categoria. Saldo não usado vira envelope para o próximo mês.</p>
   </div>
   <div class="page-actions">
+    {% if orcamentos %}
+    <form action="/orcamento/fechar" method="POST" style="display:inline;margin:0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline" onclick="return confirm('Fechar o mês atual? Os saldos restantes viram saldo_mes_anterior e zeram para o próximo mês. Continuar?')">📅 Fechar mês atual</button>
+    </form>
+    {% endif %}
     <a href="/" class="btn btn-ghost">← Voltar</a>
   </div>
 </div>
+
+{{ flash_messages() }}
 
 <div class="orc-grid">
   <div class="orc-col">
@@ -50,12 +58,11 @@
         </form>
         <div class="alert alert-warning" style="margin-top:16px;margin-bottom:0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          O bot envia alerta no Telegram quando ≥ 80% do limite é atingido.
+          O bot envia alerta no Telegram quando ≥ 80% do disponível é atingido.
         </div>
       </div>
     </div>
 
-    <!-- Categories without budget -->
     {% set cats_com_orc = orcamentos | map(attribute='categoria') | list %}
     {% set cats_gastas = gastos_mes.keys() | list %}
     {% set cats_sem_orc = cats_gastas | reject('in', cats_com_orc) | list %}
@@ -74,40 +81,52 @@
     {% endif %}
   </div>
 
-  <!-- Right: budgets with progress -->
   <div class="panel reveal">
     <div class="panel-header">
-      <div class="panel-title">Limites Este Mês</div>
+      <div class="panel-title">Envelopes do Mês</div>
     </div>
 
-    {% if orcamentos %}
-      {% for orc in orcamentos %}
-        {% set gasto = gastos_mes.get(orc.categoria, 0) %}
-        {% set pct = (gasto / orc.limite_mensal * 100) | round(1) %}
+    {% if envelopes %}
+      {% for e in envelopes %}
+        {% set pct = (e.pct) %}
         {% set pct_clamped = [pct, 100] | min %}
-        {% set status = 'over' if pct >= 100 else ('warn' if pct >= 80 else 'ok') %}
+        {% set status = 'over' if e.excedeu else ('warn' if pct >= 80 else 'ok') %}
         <div class="budget-row">
           <div class="budget-header">
             <div class="budget-cat">
-              {{ chip(orc.categoria) }}
-              {% if pct >= 100 %}
+              {{ chip(e.categoria) }}
+              {% if e.excedeu %}
+                <span class="status-hint danger">Excedeu em {{ (e.gasto - e.disponivel) | dinheiro }}</span>
+              {% elif pct >= 100 %}
                 <span class="status-hint danger">Limite atingido</span>
               {% elif pct >= 80 %}
                 <span class="status-hint warning">Atenção</span>
               {% endif %}
             </div>
             <div class="budget-amounts">
-              <strong>{{ gasto | dinheiro }}</strong> / {{ orc.limite_mensal | dinheiro }}
+              <strong>{{ e.gasto | dinheiro }}</strong> / {{ e.disponivel | dinheiro }}
             </div>
           </div>
           <div class="progress-track">
             <div class="progress-fill progress-{{ status }}" style="width: {{ pct_clamped }}%"></div>
           </div>
           <div class="progress-label">
-            <span>{{ pct | numero(1) }}% usado</span>
-            <span>Restam {{ [orc.limite_mensal - gasto, 0] | max | dinheiro }}</span>
+            <span>
+              {% if e.saldo_anterior > 0 %}
+                R$ {{ '%.2f' % e.saldo_anterior }} do mês anterior
+              {% else %}
+                Sem saldo anterior
+              {% endif %}
+            </span>
+            <span>
+              {% if e.excedeu %}
+                Excedido em {{ (e.gasto - e.disponivel) | dinheiro }}
+              {% else %}
+                Restam {{ e.restante | dinheiro }}
+              {% endif %}
+            </span>
           </div>
-          {% set meta_prog = savings.get(orc.categoria) %}
+          {% set meta_prog = savings.get(e.categoria) %}
           {% if meta_prog %}
           <div class="savings-meta">
             <div class="savings-meta-head">

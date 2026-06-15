@@ -105,6 +105,7 @@ class Orcamento(db.Model):
     categoria = db.Column(db.String(50), unique=True, nullable=False)
     limite_mensal = db.Column(db.Float, nullable=False)
     meta_economia = db.Column(db.Float, nullable=True)
+    saldo_mes_anterior = db.Column(db.Float, nullable=False, default=0.0)
 
 
 class Categoria(db.Model):
