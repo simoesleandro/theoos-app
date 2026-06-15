@@ -90,6 +90,7 @@
         <select id="theme" name="theme" class="form-select" onchange="this.form.submit()" style="max-width:240px">
           <option value="dark" {% if theme == 'dark' %}selected{% endif %}>Escuro</option>
           <option value="light" {% if theme == 'light' %}selected{% endif %}>Claro</option>
+          <option value="auto" {% if theme == 'auto' %}selected{% endif %}>Automático (segue sistema)</option>
         </select>
       </form>
     </div>

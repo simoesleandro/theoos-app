@@ -2,6 +2,16 @@
 <!DOCTYPE html>
 <html lang="pt-BR" data-theme="{{ ui_theme|default('dark') }}">
 <head>
+<script>
+(function() {
+  var html = document.documentElement;
+  var stored = html.getAttribute('data-theme') || 'dark';
+  if (stored === 'auto') {
+    var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    html.setAttribute('data-theme', prefersLight ? 'light' : 'dark');
+  }
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}Dashboard{% endblock %} — ThéoOS</title>
