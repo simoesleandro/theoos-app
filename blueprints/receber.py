@@ -1,5 +1,6 @@
 """Blueprint de contas a receber."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 import calendar
 import os
@@ -108,6 +109,7 @@ def receber():
 
 
 @bp.route("/receber/editar/<int:id>", methods=["POST"])
+@admin_required
 def editar_recebivel(id: int):
     recebivel = db.session.get(ContaReceber, id)
     if not recebivel:
@@ -162,6 +164,7 @@ def editar_recebivel(id: int):
 
 
 @bp.route("/receber/deletar/<int:id>", methods=["POST"])
+@admin_required
 def deletar_recebivel(id: int):
     recebivel = db.session.get(ContaReceber, id)
     if recebivel:
@@ -181,6 +184,7 @@ def deletar_recebivel(id: int):
 
 
 @bp.route("/receber/dar_baixa/<int:id>", methods=["POST"])
+@admin_required
 def dar_baixa_recebivel(id: int):
     recebivel = db.session.get(ContaReceber, id)
     if recebivel:

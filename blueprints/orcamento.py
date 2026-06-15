@@ -1,5 +1,6 @@
 """Blueprint de orçamento."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 from collections import defaultdict
 from datetime import date
@@ -74,6 +75,7 @@ def orcamento():
 
 
 @bp.route("/orcamento/fechar", methods=["POST"])
+@admin_required
 def fechar_mes():
     """Fecha o mês atual: para cada orçamento, salva o saldo (limite - gasto)
     como saldo_mes_anterior para o próximo mês. Saldos negativos são zerados

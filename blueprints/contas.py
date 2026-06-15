@@ -1,5 +1,6 @@
 """Blueprint de contas a pagar."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 import calendar
 import os
@@ -121,6 +122,7 @@ def contas():
 
 
 @bp.route("/contas/editar/<int:id>", methods=["POST"])
+@admin_required
 def editar_conta(id: int):
     conta = db.session.get(Conta, id)
     if not conta:
@@ -175,6 +177,7 @@ def editar_conta(id: int):
 
 
 @bp.route("/contas/deletar/<int:id>", methods=["POST"])
+@admin_required
 def deletar_conta(id: int):
     conta = db.session.get(Conta, id)
     if conta:
@@ -194,6 +197,7 @@ def deletar_conta(id: int):
 
 
 @bp.route("/pagar_conta/<int:id>", methods=["POST"])
+@admin_required
 def pagar_conta(id: int):
     conta = db.session.get(Conta, id)
     if conta:
@@ -221,6 +225,7 @@ def pagar_conta(id: int):
 
 
 @bp.route("/api/contas/bulk_actions", methods=["POST"])
+@admin_required
 def bulk_actions_contas():
     dados = request.get_json() or {}
     action = dados.get("action", "").strip()

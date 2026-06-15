@@ -1,5 +1,6 @@
 """Blueprint de relatórios e exports."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 import calendar
 from collections import defaultdict
@@ -264,6 +265,7 @@ def relatorios():
 
 
 @bp.route("/relatorios/deletar/<int:id>", methods=["POST"])
+@admin_required
 def deletar_transacao(id: int):
     nota = db.session.get(Financas, id)
     if nota:

@@ -1,5 +1,6 @@
 """Blueprint de upload de cupom e gestão de notas/itens."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 import hashlib
 import json
@@ -284,6 +285,7 @@ Retorne SOMENTE JSON puro, sem markdown:
 
 
 @bp.route("/upload_nota/editar/<int:cupom_id>", methods=["POST"])
+@admin_required
 def editar_cupom_header(cupom_id: int):
     cupom = db.session.get(Financas, cupom_id)
     if not cupom:
@@ -311,6 +313,7 @@ def editar_cupom_header(cupom_id: int):
 
 
 @bp.route("/upload_nota/deletar/<int:cupom_id>", methods=["POST"])
+@admin_required
 def deletar_cupom(cupom_id: int):
     cupom = db.session.get(Financas, cupom_id)
     if cupom:
@@ -331,6 +334,7 @@ def deletar_cupom(cupom_id: int):
 
 
 @bp.route("/upload_nota/item/editar/<int:item_id>", methods=["POST"])
+@admin_required
 def editar_item_cupom(item_id: int):
     item = db.session.get(ItemGasto, item_id)
     if not item:
@@ -392,6 +396,7 @@ def editar_item_cupom(item_id: int):
 
 
 @bp.route("/upload_nota/salvar_tudo/<int:cupom_id>", methods=["POST"])
+@admin_required
 def salvar_tudo_cupom(cupom_id: int):
     cupom = db.session.get(Financas, cupom_id)
     if not cupom:
@@ -458,6 +463,7 @@ def salvar_tudo_cupom(cupom_id: int):
 
 
 @bp.route("/upload_nota/item/deletar/<int:item_id>", methods=["POST"])
+@admin_required
 def deletar_item_cupom(item_id: int):
     item = db.session.get(ItemGasto, item_id)
     if not item:

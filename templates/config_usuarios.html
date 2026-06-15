@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Usuários — Configurações{% endblock %}
+
+{% block conteudo %}
+<div class="page-header reveal">
+  <div>
+    <h1 class="page-heading">Gestão de <em>Usuários</em></h1>
+    <p class="page-sub">Admin e Viewer. Admin pode tudo; Viewer só leitura.</p>
+  </div>
+  <a href="/config" class="btn btn-ghost">← Configurações</a>
+</div>
+
+{{ flash_messages() if flash_messages else '' }}
+
+{% if request.endpoint %}
+{% from 'macros/ui.html' import flash_messages %}
+{% endif %}
+
+<div class="panel reveal">
+  <div class="panel-header">
+    <div class="panel-title">Adicionar usuário</div>
+  </div>
+  <div class="panel-body">
+    <form action="/config/usuarios" method="POST" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create">
+      <div class="form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="username">Usuário</label>
+          <input type="text" id="username" name="username" class="form-input" required>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="nome">Nome (opcional)</label>
+          <input type="text" id="nome" name="nome" class="form-input">
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="password">Senha</label>
+          <input type="password" id="password" name="password" class="form-input" required minlength="4">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="role">Role</label>
+          <select id="role" name="role" class="form-select">
+            <option value="viewer" selected>Viewer (só leitura)</option>
+            <option value="admin">Admin (tudo)</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="align-self:flex-start">Adicionar</button>
+    </form>
+  </div>
+</div>
+
+<div class="panel reveal" style="margin-top:18px">
+  <div class="panel-header">
+    <div class="panel-title">Usuários cadastrados</div>
+    <span class="panel-sub">{{ usuarios|length }} usuário{% if usuarios|length != 1 %}s{% endif %}</span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr><th>Usuário</th><th>Nome</th><th>Role</th><th>Ativo</th><th>Criado em</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td><strong>{{ u.username }}</strong></td>
+          <td>{{ u.nome or '—' }}</td>
+          <td>
+            <form action="/config/usuarios" method="POST" style="display:inline;margin:0">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="role">
+              <input type="hidden" name="id" value="{{ u.id }}">
+              <select name="role" class="form-select" onchange="this.form.submit()" style="min-height:32px;font-size:13px">
+                <option value="viewer" {% if u.role == 'viewer' %}selected{% endif %}>viewer</option>
+                <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option>
+              </select>
+            </form>
+          </td>
+          <td>{% if u.ativo %}<span class="chip chip-success">sim</span>{% else %}<span class="chip chip-neutral">não</span>{% endif %}</td>
+          <td class="tx-meta">{{ u.criado_em.strftime('%d/%m/%Y') if u.criado_em else '—' }}</td>
+          <td style="text-align:right">
+            {% if u.username != 'admin' %}
+            <form action="/config/usuarios" method="POST" style="display:inline;margin:0" onsubmit="return confirm('Remover {{ u.username }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="id" value="{{ u.id }}">
+              <button type="submit" class="btn btn-danger btn-sm">Remover</button>
+            </form>
+            {% else %}
+            <span class="tx-meta">protegido</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

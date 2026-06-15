@@ -1,5 +1,6 @@
 """Blueprint de categorias, produtos e sugestões."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 from collections import defaultdict
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -102,6 +103,7 @@ def _buscar_sugestoes_produto(q, limit=8):
 
 
 @bp.route("/api/categorias", methods=["POST"])
+@admin_required
 def adicionar_categoria_api():
     dados = request.get_json() or {}
     nome = dados.get("nome", "").strip()
@@ -149,6 +151,7 @@ def categorias():
 
 
 @bp.route("/categorias/editar/<int:id>", methods=["POST"])
+@admin_required
 def editar_categoria(id: int):
     cat = db.session.get(Categoria, id)
     if not cat:
@@ -190,6 +193,7 @@ def editar_categoria(id: int):
 
 
 @bp.route("/categorias/deletar/<int:id>", methods=["POST"])
+@admin_required
 def deletar_categoria(id: int):
     cat = db.session.get(Categoria, id)
     if not cat:
@@ -217,6 +221,7 @@ def deletar_categoria(id: int):
 
 
 @bp.route("/categorias/produto/salvar/<int:id>", methods=["POST"])
+@admin_required
 def salvar_produto_catalogo(id: int):
     try:
         produtos_svc.update_produto_catalog(
@@ -240,6 +245,7 @@ def salvar_produto_catalogo(id: int):
 
 
 @bp.route("/categorias/produto/fusao", methods=["POST"])
+@admin_required
 def fusao_produtos():
     data = request.get_json(silent=True) or {}
     target_id = data.get("target_id")
@@ -260,6 +266,7 @@ def fusao_produtos():
 
 
 @bp.route("/categorias/produto/deletar/<int:id>", methods=["POST"])
+@admin_required
 def deletar_produto_catalogo(id: int):
     try:
         produtos_svc.delete_produto_catalog(db, Produto, ItemGasto, id)

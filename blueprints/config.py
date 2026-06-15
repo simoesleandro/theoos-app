@@ -1,5 +1,6 @@
 """Blueprint de configurações, backup, importação de extrato e health."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 import csv
 import io
@@ -23,7 +24,7 @@ from flask import (
 from models import Financas, ItemGasto, db
 from theoos import audit, backup, reconcile, recurring
 from theoos.db_migrate import get_setting, set_setting
-
+from theoos.auth import admin_required
 bp = Blueprint("config", __name__)
 
 
@@ -39,6 +40,7 @@ def health():
 
 
 @bp.route("/config", methods=["GET", "POST"])
+@admin_required
 def config_page():
     if request.method == "POST":
         action = request.form.get("action")
@@ -118,6 +120,7 @@ def config_backup():
 
 
 @bp.route("/config/restore", methods=["POST"])
+@admin_required
 def config_restore():
     f = request.files.get("backup")
     if not f:
@@ -221,3 +224,60 @@ def importar_cartao():
         meta=meta,
         importados=len(novos),
     )
+
+
+@bp.route("/config/usuarios", methods=["GET", "POST"])
+@admin_required
+def config_usuarios():
+    from models import Usuario
+    from theoos.auth import create_user
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "create":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            nome = request.form.get("nome", "").strip()
+            role = request.form.get("role", "viewer")
+            if not username or not password:
+                flash("Usuário e senha são obrigatórios.", "danger")
+            elif Usuario.query.filter_by(username=username).first():
+                flash(f"Usuário '{username}' já existe.", "warning")
+            elif role not in ("admin", "viewer"):
+                flash("Role inválido.", "danger")
+            else:
+                try:
+                    create_user(db, username, password, nome, role)
+                    flash(f"Usuário '{username}' criado como {role}.", "success")
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f"Erro: {e}", "danger")
+        elif action == "delete":
+            try:
+                uid = int(request.form.get("id", 0))
+                u = db.session.get(Usuario, uid)
+                if u and u.username != "admin":
+                    db.session.delete(u)
+                    db.session.commit()
+                    flash(f"Usuário '{u.username}' removido.", "success")
+                else:
+                    flash("Não é possível remover o admin padrão.", "warning")
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Erro: {e}", "danger")
+        elif action == "role":
+            try:
+                uid = int(request.form.get("id", 0))
+                new_role = request.form.get("role", "viewer")
+                u = db.session.get(Usuario, uid)
+                if u and new_role in ("admin", "viewer"):
+                    u.role = new_role
+                    db.session.commit()
+                    flash(f"Role de '{u.username}' alterado para {new_role}.", "success")
+            except Exception as e:
+                db.session.rollback()
+                flash(f"Erro: {e}", "danger")
+        return redirect(url_for("config.config_usuarios"))
+
+    usuarios = Usuario.query.order_by(Usuario.username).all()
+    return render_template("config_usuarios.html", usuarios=usuarios)

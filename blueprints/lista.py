@@ -1,5 +1,6 @@
 """Blueprint da lista de compras e baixa por cupom."""
 from __future__ import annotations
+from theoos.auth import admin_required
 
 import os
 from collections import defaultdict
@@ -150,6 +151,7 @@ def lista_compras():
 
 
 @bp.route("/comprado/<int:id>", methods=["POST"])
+@admin_required
 def marcar_comprado(id: int):
     qtd_comprada = float(request.args.get("qtd", 0))
     valor_pago = float(request.args.get("preco", "0").replace(",", "."))
@@ -190,6 +192,7 @@ def marcar_comprado(id: int):
 
 
 @bp.route("/lista/add", methods=["POST"])
+@admin_required
 def lista_add():
     item = request.form.get("item", "").strip()
     if not item:
@@ -218,6 +221,7 @@ def lista_add():
 
 
 @bp.route("/lista/add_from_history")
+@admin_required
 def add_from_history():
     item = request.args.get("item", "").strip()
     marca = request.args.get("marca", "").strip() or None
@@ -245,6 +249,7 @@ def add_from_history():
 
 
 @bp.route("/lista/delete/<int:id>", methods=["POST"])
+@admin_required
 def lista_delete(id: int):
     item = db.session.get(ListaCompras, id)
     if item:
@@ -254,6 +259,7 @@ def lista_delete(id: int):
 
 
 @bp.route("/lista/limpar", methods=["POST"])
+@admin_required
 def lista_limpar():
     ListaCompras.query.filter_by(status="comprado").delete()
     db.session.commit()
@@ -262,6 +268,7 @@ def lista_limpar():
 
 
 @bp.route("/lista/editar/<int:id>", methods=["POST"])
+@admin_required
 def lista_editar(id: int):
     item_obj = db.session.get(ListaCompras, id)
     if item_obj:

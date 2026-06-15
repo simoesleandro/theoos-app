@@ -24,7 +24,7 @@
     <div class="panel-title">Adicionar Nova Categoria</div>
   </div>
   <div class="panel-body">
-    <form action="/categorias" method="POST">
+    {% if is_admin %}<form action="/categorias" method="POST">{% endif %}
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="add-form-row">
         <input type="text" name="nome" id="nova-cat-input" class="form-input"

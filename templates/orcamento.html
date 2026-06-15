@@ -12,7 +12,7 @@
   </div>
   <div class="page-actions">
     {% if orcamentos %}
-    <form action="/orcamento/fechar" method="POST" style="display:inline;margin:0">
+    {% if is_admin %}<form action="/orcamento/fechar" method="POST" style="display:inline;margin:0">{% endif %}
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline" onclick="return confirm('Fechar o mês atual? Os saldos restantes viram saldo_mes_anterior e zeram para o próximo mês. Continuar?')">📅 Fechar mês atual</button>
     </form>
@@ -31,7 +31,7 @@
         <div class="panel-title">Definir Limite Mensal</div>
       </div>
       <div class="panel-body">
-        <form action="/orcamento" method="POST">
+        {% if is_admin %}<form action="/orcamento" method="POST">{% endif %}
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="orc-form-grid">
             <div class="form-group" style="margin-bottom:0">

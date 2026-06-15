@@ -1,7 +1,7 @@
 """Migrações incrementais SQLite (schema version em app_setting)."""
 from sqlalchemy import text
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 MIGRATIONS = [
     # v1 — auditoria, config, recorrência, criado_por
@@ -63,6 +63,18 @@ MIGRATIONS = [
     # v6 — saldo do mês anterior no orçamento (envelope)
     """
     ALTER TABLE orcamento ADD COLUMN saldo_mes_anterior REAL NOT NULL DEFAULT 0;
+    """,
+    # v7 — multi-usuário (admin/viewer)
+    """
+    CREATE TABLE IF NOT EXISTS usuario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        nome TEXT,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'viewer',
+        ativo INTEGER NOT NULL DEFAULT 1,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     """,
 ]
 
@@ -166,6 +178,18 @@ def run_migrations(db):
                     if not s:
                         continue
                     if "orcamento" in s and "saldo_mes_anterior" in s and _column_exists(conn, "orcamento", "saldo_mes_anterior"):
+                        continue
+                    try:
+                        conn.execute(text(s))
+                        conn.commit()
+                    except Exception:
+                        pass
+            elif step == 7:
+                for stmt in MIGRATIONS[6].strip().split(";"):
+                    s = stmt.strip()
+                    if not s:
+                        continue
+                    if s.upper().startswith("CREATE TABLE") and "usuario" in s.lower() and _table_exists(conn, "usuario"):
                         continue
                     try:
                         conn.execute(text(s))

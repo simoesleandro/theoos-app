@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Configurações{% endblock %}
+{% from 'macros/ui.html' import flash_messages %}
 
 {% block conteudo %}
 <div class="page-header reveal">
@@ -190,7 +191,8 @@
       <a href="{{ url_for('exportar') }}" class="btn btn-ghost btn-sm">Exportar itens CSV</a>
       <a href="{{ url_for('exportar_fluxo_caixa') }}" class="btn btn-ghost btn-sm">Fluxo de caixa</a>
       <a href="{{ url_for('importar_cartao') }}" class="btn btn-ghost btn-sm">Conciliar extrato</a>
-      <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">Sair da sessão</a>
+      {% if is_admin %}<a href="{{ url_for('config.config_usuarios') }}" class="btn btn-ghost btn-sm">Usuários</a>{% endif %}
+      <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">Sair da sessão</a>
     </div>
   </div>
 

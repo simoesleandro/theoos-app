@@ -115,6 +115,18 @@ class Categoria(db.Model):
     nome = db.Column(db.String(50), unique=True, nullable=False)
 
 
+class Usuario(db.Model):
+    __tablename__ = "usuario"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    nome = db.Column(db.String(100), nullable=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default="viewer")
+    ativo = db.Column(db.Boolean, default=True, nullable=False)
+    criado_em = db.Column(db.DateTime, server_default=db.func.now())
+
+
 __all__ = [
     "db",
     "ListaCompras",
@@ -125,4 +137,5 @@ __all__ = [
     "ContaReceber",
     "Orcamento",
     "Categoria",
+    "Usuario",
 ]
