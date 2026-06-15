@@ -26,6 +26,7 @@ from theoos.image_utils import (
     detect_mime_from_filename,
     normalize_image_for_gemini,
 )
+from theoos.extensions import limiter
 
 bp = Blueprint("upload", __name__)
 
@@ -37,6 +38,7 @@ def _current_actor() -> str:
 
 
 @bp.route("/upload_nota", methods=["GET", "POST"])
+@limiter.limit("10 per hour")
 def upload_nota():
     try:
         recentes = (

@@ -8,11 +8,13 @@ from flask import Blueprint, jsonify, request
 from models import Conta, ContaReceber, Financas, ItemGasto, ListaCompras, Orcamento, db
 from theoos import insights
 from theoos.db_migrate import get_setting
+from theoos.extensions import limiter
 
 bp = Blueprint("api", __name__)
 
 
 @bp.route("/api/insights")
+@limiter.limit("60 per minute")
 def api_insights():
     return jsonify(
         {
@@ -25,6 +27,7 @@ def api_insights():
 
 
 @bp.route("/api/vencimentos")
+@limiter.limit("30 per minute")
 def api_vencimentos():
     from theoos.recurring import (
         contas_due_for_reminder,

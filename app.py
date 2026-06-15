@@ -28,6 +28,7 @@ from models import (
 )
 from theoos.logging_setup import configure as configure_logging, get_logger
 from theoos.image_utils import HEIC_SUPPORTED, HEIC_MIME, detect_mime_from_filename, normalize_image_for_gemini
+from theoos.extensions import csrf, limiter
 
 load_dotenv()
 configure_logging()
@@ -58,7 +59,24 @@ app.config['WTF_CSRF_TIME_LIMIT'] = 60 * 60 * 8
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024
 app.config['WTF_CSRF_SSL_STRICT'] = False
 
-csrf = CSRFProtect(app)
+csrf.init_app(app)
+limiter.init_app(app)
+
+
+@app.errorhandler(Exception)
+def handle_unhandled_exception(e):
+    from werkzeug.exceptions import HTTPException
+
+    if isinstance(e, HTTPException):
+        return e
+    log.exception("Unhandled exception: %s", e)
+    if request.path.startswith("/api/") or request.is_json:
+        return jsonify({"sucesso": False, "erro": "Erro interno do servidor."}), 500
+    flash("Ocorreu um erro inesperado. Tente novamente.", "danger")
+    try:
+        return redirect(request.referrer or url_for("dashboard.index"))
+    except Exception:
+        return redirect("/")
 
 # Gemini client (compartilhado com bot.py)
 _gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))

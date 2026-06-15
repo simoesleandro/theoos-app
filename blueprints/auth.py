@@ -5,11 +5,13 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from models import db
 from theoos.auth import pin_configured, verify_pin
+from theoos.extensions import limiter
 
 bp = Blueprint("auth", __name__)
 
 
 @bp.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute; 100 per hour")
 def login():
     if request.method == "POST":
         pin = request.form.get("pin", "")

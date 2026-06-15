@@ -879,6 +879,7 @@ Retorne JSON: {{"itens":[{{"nome":"Batata","quantidade":2.0,"unidade":"kg","cate
 
 if __name__ == '__main__':
     import socket
+    import telebot.apihelper as apihelper
 
     _instance_lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -888,10 +889,25 @@ if __name__ == '__main__':
         log.warning("Outra instancia do bot ThéoOS ja esta em execucao. Saindo.")
         sys.exit(0)
 
+    apihelper.SESSION_TIME_LIMIT = 600
     log.info("ThéoOS Bot online...")
+    backoff = 1
+    backoff_max = 60
     while True:
         try:
-            bot.polling(non_stop=True, interval=0, timeout=20)
+            bot.polling(non_stop=True, interval=1, timeout=25)
+            backoff = 1
+        except apihelper.ApiTelegramException as e:
+            wait = min(backoff, backoff_max)
+            if getattr(e, "result", None) and isinstance(e.result, dict):
+                params = e.result.get("parameters", {})
+                retry_after = params.get("retry_after")
+                if retry_after is not None:
+                    wait = max(int(retry_after), 1)
+            log.warning("Telegram API erro (aguarda %ss): %s", wait, e)
+            time.sleep(wait)
+            backoff = min(backoff * 2, backoff_max)
         except Exception as e:
-            log.exception("Erro no polling do bot (reiniciando em 5 segundos): %s", e)
+            log.exception("Erro no polling (reiniciando em 5s): %s", e)
             time.sleep(5)
+            backoff = 1
