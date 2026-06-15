@@ -100,11 +100,11 @@
   <div class="panel settings-panel">
     <div class="panel-header"><div class="panel-title">Backup e restauração</div></div>
     <div class="panel-body form-stack">
-      <a href="{{ url_for('config_backup') }}" class="btn btn-primary">
+      <a href="{{ url_for('config.config_backup') }}" class="btn btn-primary">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Baixar backup (.zip)
       </a>
-      <form method="POST" action="{{ url_for('config_restore') }}" enctype="multipart/form-data" class="form-stack">
+      <form method="POST" action="{{ url_for('config.config_restore') }}" enctype="multipart/form-data" class="form-stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="file-field">
           <label class="form-label" for="backup-file">Restaurar de arquivo</label>
@@ -188,9 +188,9 @@
   <div class="panel settings-panel">
     <div class="panel-header"><div class="panel-title">Dados e sessão</div></div>
     <div class="panel-body settings-actions">
-      <a href="{{ url_for('exportar') }}" class="btn btn-ghost btn-sm">Exportar itens CSV</a>
-      <a href="{{ url_for('exportar_fluxo_caixa') }}" class="btn btn-ghost btn-sm">Fluxo de caixa</a>
-      <a href="{{ url_for('importar_cartao') }}" class="btn btn-ghost btn-sm">Conciliar extrato</a>
+      <a href="{{ url_for('relatorios.exportar') }}" class="btn btn-ghost btn-sm">Exportar itens CSV</a>
+      <a href="{{ url_for('config.exportar_fluxo_caixa') }}" class="btn btn-ghost btn-sm">Fluxo de caixa</a>
+      <a href="{{ url_for('config.importar_cartao') }}" class="btn btn-ghost btn-sm">Conciliar extrato</a>
       {% if is_admin %}<a href="{{ url_for('config.config_usuarios') }}" class="btn btn-ghost btn-sm">Usuários</a>{% endif %}
       <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">Sair da sessão</a>
     </div>
