@@ -22,8 +22,19 @@
     <div class="panel-title">Cadastrar conta</div>
   </div>
   <div class="panel-body">
-    <form action="/contas" method="POST" enctype="multipart/form-data">
+      <form action="/contas" method="POST" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group" style="margin-bottom:12px;padding:12px;background:var(--bg-hover);border-radius:8px;border:1px dashed var(--border)">
+        <label class="form-label" for="linha-digitavel" style="font-weight:600">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          Colar linha digitável (auto-preencher)
+        </label>
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <input type="text" id="linha-digitavel" name="linha_digitavel" class="form-input" placeholder="Ex: 23793.38128 60073.057404 80004.463325 8 84650000014750" maxlength="60" inputmode="numeric" autocomplete="off" style="font-family:monospace">
+          <button type="button" id="btn-boleto-parse" class="btn btn-outline btn-sm" style="min-width:90px;height:42px">Preencher</button>
+        </div>
+        <small id="boleto-feedback" class="tx-meta" style="display:block;margin-top:6px"></small>
+      </div>
       <div class="form-grid">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label" for="nome">Nome</label>
@@ -355,7 +366,41 @@ function setupFileInput(inputId, nameId) {
 document.addEventListener('DOMContentLoaded', () => {
   setupFileInput('foto-input', 'foto-file-name');
   setupFileInput('edit-foto-input', 'edit-foto-file-name');
+  setupBoletoParse();
 });
+
+function setupBoletoParse() {
+  const btn = document.getElementById('btn-boleto-parse');
+  const input = document.getElementById('linha-digitavel');
+  const feedback = document.getElementById('boleto-feedback');
+  if (!btn || !input) return;
+  btn.addEventListener('click', async () => {
+    const linha = input.value.trim();
+    if (!linha) { feedback.textContent = 'Cole a linha digitável primeiro.'; return; }
+    btn.disabled = true; feedback.textContent = 'Lendo...';
+    try {
+      const res = await fetch('/api/boleto/parsear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linha }),
+      });
+      const data = await res.json();
+      if (!data.sucesso) { feedback.textContent = data.erro || 'Linha inválida.'; return; }
+      const valor = (data.valor || 0).toFixed(2).replace('.', ',');
+      const valorInput = document.querySelector('input[name="valor"]');
+      const dataInput = document.querySelector('input[name="data_vencimento"]');
+      if (valorInput && data.valor) valorInput.value = data.valor.toFixed(2);
+      if (dataInput && data.vencimento) dataInput.value = data.vencimento;
+      const nomeInput = document.getElementById('nome');
+      if (nomeInput && !nomeInput.value) nomeInput.value = `Boleto banco ${data.banco}`;
+      feedback.textContent = `OK • R$ ${valor} • venc ${data.vencimento || 'sem fator'}`;
+    } catch (e) {
+      feedback.textContent = 'Erro ao processar linha.';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
 
 function toggleRecorrencia() {
   const wrap = document.getElementById('recorrencia-meses-wrap');

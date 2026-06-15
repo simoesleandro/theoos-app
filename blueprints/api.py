@@ -97,3 +97,25 @@ def api_vencimentos():
             "receber": receber_out,
         }
     )
+
+
+@bp.route("/api/boleto/parsear", methods=["POST"])
+@limiter.limit("20 per minute")
+def api_boleto_parsear():
+    from theoos.boleto import parse_linha_digitavel
+
+    dados = request.get_json(silent=True) or {}
+    linha = dados.get("linha", "")
+    try:
+        info = parse_linha_digitavel(linha)
+    except ValueError as e:
+        return jsonify({"sucesso": False, "erro": str(e)}), 400
+    return jsonify(
+        {
+            "sucesso": True,
+            "valor": info["valor"],
+            "vencimento": info["vencimento"].isoformat() if info["vencimento"] else None,
+            "banco": info["banco"],
+            "nosso_numero": info["nosso_numero"],
+        }
+    )
