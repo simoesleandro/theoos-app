@@ -1,17 +1,17 @@
-# ThéoOS — Agent & project memory
+﻿# ThÃ©oOS â€” Agent & project memory
 
 Persistent context for AI assistants and developers working on this repo.
 
 **Repo:** https://github.com/simoesleandro/theoos-app.git  
-**Last major update:** June 2026 — multi-user + HTMX dashboard + OCR offline fallback + PWA + service stability fix.
+**Last major update:** June 2026 â€” multi-user + HTMX dashboard + OCR offline fallback + PWA + service stability fix.
 
 ---
 
 ## What this project is
 
-**ThéoOS** is a family household “OS”: Flask web panel on LAN (:5000) + Telegram bot. SQLite stores finances, shopping list, bills, budgets, and receipt OCR (Gemini). Runs on Windows at home; optional WinSW services start web + bot on boot.
+**ThÃ©oOS** is a family household â€œOSâ€: Flask web panel on LAN (:5000) + Telegram bot. SQLite stores finances, shopping list, bills, budgets, and receipt OCR (Gemini). Runs on Windows at home; optional WinSW services start web + bot on boot.
 
-**Author:** Leandro Simões (FIAP). **Language:** UI in Brazilian Portuguese; **commit messages in English** (Conventional Commits).
+**Author:** Leandro SimÃµes (FIAP). **Language:** UI in Brazilian Portuguese; **commit messages in English** (Conventional Commits).
 
 ---
 
@@ -28,7 +28,7 @@ theoos/             # Service modules (imported by app + bot)
   insights.py       # week_agenda, budget_status, price alerts, pesquisa, unit price
   recurring.py      # Monthly fixed bills templates
   reconcile.py      # Bank CSV import
-  pdf_report.py     # Monthly PDF (fpdf2, ThéoOS layout)
+  pdf_report.py     # Monthly PDF (fpdf2, ThÃ©oOS layout)
   telegram_lista.py # Telegram shopping list HTML + inline keyboard
   telegram_format.py # Telegram HTML cards, /start /ajuda menus, alertas
   produtos.py       # Product catalog, OCR matching, merge
@@ -49,37 +49,37 @@ theoos-web.xml / theoos-bot.xml
 
 ## Session work log (what was built)
 
-### Phase 1–3 — UX/UI redesign
+### Phase 1â€“3 â€” UX/UI redesign
 - Full design system in `static/css/theoos.css` (tokens, components, responsive).
-- Refactored templates: dashboard, pesquisa, contas, lista, receber, upload, orçamento, relatórios, categorias.
+- Refactored templates: dashboard, pesquisa, contas, lista, receber, upload, orÃ§amento, relatÃ³rios, categorias.
 - `macros/ui.html`: `empty_state`, chips, pagination; skeleton on OCR upload.
-- Relatórios: `tx-row` grid aligned with dashboard.
+- RelatÃ³rios: `tx-row` grid aligned with dashboard.
 - Focus trap on modals; theme light/dark via `app_setting` + `data-theme`.
 
 ### Platform package (`theoos/`)
 - PIN auth (`WEB_PIN` or config), login template.
 - Backup/restore ZIP, DB migrations (schema v3, `meta_economia`, `mercado` on items).
-- Dashboard: week agenda (7 days), budget bars, price alerts, “missing habit” products.
+- Dashboard: week agenda (7 days), budget bars, price alerts, â€œmissing habitâ€ products.
 - Insights API `/api/insights`, bank CSV `/importar/cartao`, cashflow CSV export.
 - CI: `.github/workflows/ci.yml`, `tests/test_smoke.py` (8 tests).
 - Docs: `docs/API.md`, `docs/DEPLOY.md`.
 
 ### Dashboard polish (user mockups)
-- Replaced large “Esta semana” panel with **side-by-side compact cards**: “Contas a vencer” / “Receitas a receber”.
-- Max 3 rows + **expand in place** (“+ Ver mais”) + link to full pages.
+- Replaced large â€œEsta semanaâ€ panel with **side-by-side compact cards**: â€œContas a vencerâ€ / â€œReceitas a receberâ€.
+- Max 3 rows + **expand in place** (â€œ+ Ver maisâ€) + link to full pages.
 - `week_agenda` includes **overdue** pending bills (not only future dates).
 - Buttons **Pagar/Receber**: `btn-outline` (teal border).
 - Removed duplicate `contas_proximas` queries from `index()`.
 
 ### Feature batch (all five options)
-1. **Budget meta** — `meta_economia` progress bar on `/orcamento` and dashboard.
-2. **Web notifications** — `/api/vencimentos`, `theoos-notify.js`, config toggle; requires HTTPS or localhost.
-3. **PDF export** — `/exportar/pdf?mes=YYYY-MM` (fpdf2).
-4. **Market comparator** — charts on `/pesquisa` (global ranking + per-product by store).
-5. **Telegram** — `/semana`, `/orcamento` commands.
+1. **Budget meta** â€” `meta_economia` progress bar on `/orcamento` and dashboard.
+2. **Web notifications** â€” `/api/vencimentos`, `theoos-notify.js`, config toggle; requires HTTPS or localhost.
+3. **PDF export** â€” `/exportar/pdf?mes=YYYY-MM` (fpdf2).
+4. **Market comparator** â€” charts on `/pesquisa` (global ranking + per-product by store).
+5. **Telegram** â€” `/semana`, `/orcamento` commands.
 
 ### Bug fixes
-- Dropdown **Mais / Mais ações** behind KPIs/panels: `z-index` on `.page-header` and `.actions-overflow[open]`.
+- Dropdown **Mais / Mais aÃ§Ãµes** behind KPIs/panels: `z-index` on `.page-header` and `.actions-overflow[open]`.
 - Notification button feedback (secure context, denied permission messages).
 
 ### WinSW (Windows auto-start)
@@ -90,63 +90,63 @@ theoos-web.xml / theoos-bot.xml
 ### Git
 - Commit `c976d9a`: `feat: redesign UI and expand core platform capabilities` pushed to `main`.
 
-### Phase 4 — Lista, detetive e PDF (June 2026)
+### Phase 4 â€” Lista, detetive e PDF (June 2026)
 
 #### Lista de compras (web + Telegram)
-- **Web `/lista`:** removida edição inline; botão **Editar** abre modal (`data-payload` + listener; evita `tojson` em `onclick`).
+- **Web `/lista`:** removida ediÃ§Ã£o inline; botÃ£o **Editar** abre modal (`data-payload` + listener; evita `tojson` em `onclick`).
 - **Autocomplete:** `GET /api/sugerir_produtos?q=...` ao digitar no modal.
-- **Telegram `/lista`:** `theoos/telegram_lista.py` — mensagem HTML formatada, botões inline (adicionar, atualizar, sugestão, riscar, abrir app).
-- **Riscar sem baixa:** campo `ListaCompras.marcado` (schema v4); toggle `lista_toggle:{id}` no bot; baixa (`comprado`) só via cupom OCR ou “Dar baixa” na web.
-- **URL Telegram:** `telegram_url_ok()` — não envia botão com `localhost`; fallback callback se `THEOOS_WEB_URL` inválido.
+- **Telegram `/lista`:** `theoos/telegram_lista.py` â€” mensagem HTML formatada, botÃµes inline (adicionar, atualizar, sugestÃ£o, riscar, abrir app).
+- **Riscar sem baixa:** campo `ListaCompras.marcado` (schema v4); toggle `lista_toggle:{id}` no bot; baixa (`comprado`) sÃ³ via cupom OCR ou â€œDar baixaâ€ na web.
+- **URL Telegram:** `telegram_url_ok()` â€” nÃ£o envia botÃ£o com `localhost`; fallback callback se `THEOOS_WEB_URL` invÃ¡lido.
 
-#### Detetive de preços (`/pesquisa`, relatórios)
-- Preço justo: **R$/un = valor_total ÷ quantidade**; comparar só mesma unidade (`kg`, `un`, etc.).
-- `pesquisa_resultados()` + `_collapse_pesquisa_rows()` — agrupa mesma compra (data+loja+produto+marca+unidade); badge **“Nx no cupom”** e faixa **R$ min – R$ max/un**.
+#### Detetive de preÃ§os (`/pesquisa`, relatÃ³rios)
+- PreÃ§o justo: **R$/un = valor_total Ã· quantidade**; comparar sÃ³ mesma unidade (`kg`, `un`, etc.).
+- `pesquisa_resultados()` + `_collapse_pesquisa_rows()` â€” agrupa mesma compra (data+loja+produto+marca+unidade); badge **â€œNx no cupomâ€** e faixa **R$ min â€“ R$ max/un**.
 - `minmax_por_unidade()` considera `preco_max` em linhas agrupadas.
-- Colunas na tabela: Qtd, Un., R$/un, Total; KPI relatórios com `white-space: nowrap`.
+- Colunas na tabela: Qtd, Un., R$/un, Total; KPI relatÃ³rios com `white-space: nowrap`.
 - Testes: `tests/test_insights.py`.
 
 #### PDF mensal (`/exportar/pdf`)
-- Layout alinhado ao design ThéoOS: header teal, 4 KPI cards largura igual (`TABLE_W=182mm`).
-- Tabelas categorias / contas / transações mesma largura; cabeçalho repetido em quebra de página (`_ensure_table_space`).
+- Layout alinhado ao design ThÃ©oOS: header teal, 4 KPI cards largura igual (`TABLE_W=182mm`).
+- Tabelas categorias / contas / transaÃ§Ãµes mesma largura; cabeÃ§alho repetido em quebra de pÃ¡gina (`_ensure_table_space`).
 - Download: `bytes(pdf.output())` para Werkzeug.
-- Label KPI **“LANCAM.”**; valores monetários fonte 8pt alinhados à direita.
+- Label KPI **â€œLANCAM.â€**; valores monetÃ¡rios fonte 8pt alinhados Ã  direita.
 
 #### Fixes
-- WinSW: reinstalar de `%OneDrive%\Desktop\appfamiliar` se serviço apontar path antigo.
-- Removida rota `/lista/salvar_tudo` (cache do browser pode dar 404 até hard refresh).
+- WinSW: reinstalar de `%OneDrive%\Desktop\appfamiliar` se serviÃ§o apontar path antigo.
+- Removida rota `/lista/salvar_tudo` (cache do browser pode dar 404 atÃ© hard refresh).
 
-### Phase 0–3 — Hardening & refactor (June 2026)
+### Phase 0â€“3 â€” Hardening & refactor (June 2026)
 
-**Architecture rewrite** — 17 commits, ~50 files touched.
+**Architecture rewrite** â€” 17 commits, ~50 files touched.
 
-- **Phase 0 (hygiene/security):** pinned `requirements.txt` + `requirements-dev.txt`; `pyproject.toml` (ruff/mypy/pytest); pre-commit; CI; `theoos/logging_setup.py` replaces 25 `print()` calls (rotating handler, 5×10MB); auto-gen `SECRET_KEY`; Flask-WTF CSRF on 27 forms; 7 destructive routes → POST-only; HEIC→JPEG (`theoos/image_utils.py`); SQLite WAL + `foreign_keys=ON`.
-- **Phase 1 (refactor):** `models.py` extracted (8 models + uninitialized `db`); `app.py` shrank 2152→286 lines; 11 blueprints covering 50 routes; `wsgi.py` with Waitress; `bot.py:19` `datetime` import fixed.
+- **Phase 0 (hygiene/security):** pinned `requirements.txt` + `requirements-dev.txt`; `pyproject.toml` (ruff/mypy/pytest); pre-commit; CI; `theoos/logging_setup.py` replaces 25 `print()` calls (rotating handler, 5Ã—10MB); auto-gen `SECRET_KEY`; Flask-WTF CSRF on 27 forms; 7 destructive routes â†’ POST-only; HEICâ†’JPEG (`theoos/image_utils.py`); SQLite WAL + `foreign_keys=ON`.
+- **Phase 1 (refactor):** `models.py` extracted (8 models + uninitialized `db`); `app.py` shrank 2152â†’286 lines; 11 blueprints covering 50 routes; `wsgi.py` with Waitress; `bot.py:19` `datetime` import fixed.
 - **Phase 2 (robustness):** bot polling backoff (`ApiTelegramException`, exponential cap 60s); `theoos/extensions.py` (limiter + csrf uninitialized); rate-limits on `/login`, `/upload_nota`, `/api/*`; global error handler (no stack exposure); `scripts/backup.py` with `--keep`.
 - **Phase 3 (features):** PDF UTF-8 (`theoos/pdf_report.py`); multi-cupom OCR; Febraban boleto parser; OFX 1.x export; PWA icons + service worker v2; sparklines + forecast (`theoos/insights.py`); envelope budgeting with rollover (schema v6); Tesseract offline OCR fallback; CSV import with auto-detect delimiter/encoding/bank format; HTMX dashboard auto-refresh; **multi-user** with `Usuario` model (schema v7), `theoos/auth.py` rewrite, admin/viewer roles, `@admin_required` on 24 destructive routes, `/config/usuarios` page. Default admin auto-creates on first boot (password from `THEOOS_ADMIN_PASSWORD` env or random + logged warning).
 
 **Test count:** 62/62 passing.
 
-### Phase 5 — Catálogo, Telegram pro, lembretes (June 2026)
+### Phase 5 â€” CatÃ¡logo, Telegram pro, lembretes (June 2026)
 
-#### Catálogo de produtos (anti-duplicação OCR)
+#### CatÃ¡logo de produtos (anti-duplicaÃ§Ã£o OCR)
 - **Schema v5:** tabela `Produto`, coluna `ItemGasto.produto_id`.
-- **`theoos/produtos.py`:** matcher pós-OCR (similaridade), catálogo implícito, `normalize_itens_ocr()`, `seed_catalog_from_history()`, `merge_produtos()`.
-- **Web `/categorias`:** catálogo agrupado + fusão manual de duplicatas; rotas salvar/fusão/deletar produto.
-- **OCR web + Telegram:** prompt Gemini enriquecido com produtos conhecidos; matching após extração.
+- **`theoos/produtos.py`:** matcher pÃ³s-OCR (similaridade), catÃ¡logo implÃ­cito, `normalize_itens_ocr()`, `seed_catalog_from_history()`, `merge_produtos()`.
+- **Web `/categorias`:** catÃ¡logo agrupado + fusÃ£o manual de duplicatas; rotas salvar/fusÃ£o/deletar produto.
+- **OCR web + Telegram:** prompt Gemini enriquecido com produtos conhecidos; matching apÃ³s extraÃ§Ã£o.
 - Testes: `tests/test_produtos.py`.
 
-#### Telegram — formatação e menu interativo
-- **`theoos/telegram_format.py`:** HTML + blockquote expandível (cards) para todas as mensagens automáticas.
-- **`/start` e `/ajuda`:** menu com **10 botões inline** (`menu:{cmd}`) que **executam** a ação real (lista, semana, orçamento, relatório, lembretes, etc.).
-- **`/ajuda` e `/help`:** guia completo; cupom/texto mostram instrução; comprar ativa modo adicionar item.
-- Callbacks: `menu:*` (compat `help_cmd:*`); lista mantém `lista_*`.
-- **Singleton:** lock socket porta 48721 em `bot.py` — evita erro 409 (duas instâncias polling).
+#### Telegram â€” formataÃ§Ã£o e menu interativo
+- **`theoos/telegram_format.py`:** HTML + blockquote expandÃ­vel (cards) para todas as mensagens automÃ¡ticas.
+- **`/start` e `/ajuda`:** menu com **10 botÃµes inline** (`menu:{cmd}`) que **executam** a aÃ§Ã£o real (lista, semana, orÃ§amento, relatÃ³rio, lembretes, etc.).
+- **`/ajuda` e `/help`:** guia completo; cupom/texto mostram instruÃ§Ã£o; comprar ativa modo adicionar item.
+- Callbacks: `menu:*` (compat `help_cmd:*`); lista mantÃ©m `lista_*`.
+- **Singleton:** lock socket porta 48721 em `bot.py` â€” evita erro 409 (duas instÃ¢ncias polling).
 - Testes: `tests/test_telegram_format.py`.
 
 #### Lembretes de contas
-- Alertas diários de **contas vencidas** + vencimentos próximos (`reminder_days` configurável).
-- Scheduler robusto (≥10h, 1×/dia) + catch-up ao reiniciar bot.
+- Alertas diÃ¡rios de **contas vencidas** + vencimentos prÃ³ximos (`reminder_days` configurÃ¡vel).
+- Scheduler robusto (â‰¥10h, 1Ã—/dia) + catch-up ao reiniciar bot.
 - **`/lembretes`:** teste manual; API `/api/vencimentos` inclui vencidas.
 - Testes: `tests/test_reminders.py`.
 
@@ -154,23 +154,23 @@ theoos-web.xml / theoos-bot.xml
 
 ## Conventions for future changes
 
-- **Minimal diffs** — match existing patterns; reuse `theoos/` and macros before duplicating Jinja.
+- **Minimal diffs** â€” match existing patterns; reuse `theoos/` and macros before duplicating Jinja.
 - **No commits** unless the user asks; messages in **English**, Conventional Commits (`feat:`, `fix:`, `docs:`).
 - **No** `git config` changes; no force-push to `main`.
 - **Tests:** `python -m pytest tests/ -q` after substantive Python changes.
 - **Manual dev:** `python app.py` (port 5000). **Production:** WinSW services, not debug mode.
 - **UI copy:** Portuguese (pt-BR). **CSS:** extend `theoos.css`, avoid inline styles in new work.
 - **Bill rows:** use `macros/bills.html` for pay/receive list pattern.
-- **Cost calibration** (lessons from the Phase 0–3 session): avoid re-reading large files (`app.py` was 2152 lines × 5+ reads = ~$0.10 wasted per re-read); keep thinking blocks ~2k tokens, not 20k; prefer 1 commit per phase over 5 small ones; respond in PT-BR but commit messages in English; do not regenerate boilerplate that already exists. Typical commit cost ~$0.10–0.20 once calibrated; first-time exploration of an unknown codebase can run $3+ without these constraints.
+- **Cost calibration** (lessons from the Phase 0â€“3 session): avoid re-reading large files (`app.py` was 2152 lines Ã— 5+ reads = ~$0.10 wasted per re-read); keep thinking blocks ~2k tokens, not 20k; prefer 1 commit per phase over 5 small ones; respond in PT-BR but commit messages in English; do not regenerate boilerplate that already exists. Typical commit cost ~$0.10â€“0.20 once calibrated; first-time exploration of an unknown codebase can run $3+ without these constraints.
 
 ---
 
-### Phase 6 — Service stability + template fix (June 2026)
+### Phase 6 â€” Service stability + template fix (June 2026)
 
 Web service restart-looped every ~10s and bot never started. Two independent root causes plus one template bug:
 
 #### WinSW launcher Python path
-- `scripts/winsw-{web,bot}.cmd` had `C:\Users\Leand\...\Python313\python.exe` hardcoded (author's dev machine). The actual host user is `stife` with `Python312`. Bot never started (`logs/service-error.log`: 215 × "Python nao encontrado" since 14/06 17:11). Web only "worked" because `app.py` was started manually before the broken `flask_wtf` import was added.
+- `scripts/winsw-{web,bot}.cmd` had `C:\Users\Leand\...\Python313\python.exe` hardcoded (author's dev machine). The actual host user is `stife` with `Python312`. Bot never started (`logs/service-error.log`: 215 Ã— "Python nao encontrado" since 14/06 17:11). Web only "worked" because `app.py` was started manually before the broken `flask_wtf` import was added.
 - Always point `THEOOS_PYTHON` at the real host's Python; verify with `sc.exe qc theoos-web` after install.
 - `theoos-bot.xml` used hardcoded lowercase `C:\meus_projetos\theoos-app` while `theoos-web.xml` used `%BASE%`. Standardized on `%BASE%` for both.
 
@@ -179,19 +179,19 @@ Web service restart-looped every ~10s and bot never started. Two independent roo
 - Lesson: after adding any new import to `app.py` / `bot.py`, run `pip install -r requirements.txt` and restart the service. The restart-loop symptom is a `ModuleNotFoundError` repeating in `theoos-web.err.log`.
 
 #### `url_for` namespace in templates
-- `templates/config.html` had `url_for('config_backup')`, `url_for('exportar')` etc. without the blueprint prefix. Flask's `BuildError` is **not** an `HTTPException`, so the global handler in `app.py:66` swallows it and silently redirects to `/` — user sees "Configurações" link → bounce to dashboard with no message.
+- `templates/config.html` had `url_for('config_backup')`, `url_for('exportar')` etc. without the blueprint prefix. Flask's `BuildError` is **not** an `HTTPException`, so the global handler in `app.py:66` swallows it and silently redirects to `/` â€” user sees "ConfiguraÃ§Ãµes" link â†’ bounce to dashboard with no message.
 - Always write `url_for('config.config_backup')` (or `url_for('relatorios.exportar')`, etc.). The error message includes the correct suggestion: `Did you mean 'config.config_backup' instead?`.
 - Audit rule: `grep -n "url_for('" templates/*.html` and cross-check each endpoint against the blueprint's `@bp.route` lines.
 
 #### Jinja caches templates in production
-- `THEOOS_SERVICE=1` disables Flask debug, so `TEMPLATES_AUTO_RELOAD=False`. Edits to `templates/*.html` are **not** picked up until `.\theoos-web.exe restart`. A clean `/health` + 200 OK on `/config` after an edit is *not* proof the fix worked — must check the rendered body (`curl -s http://localhost:5000/login -b cookies.txt | grep "panel-title"`).
+- `THEOOS_SERVICE=1` disables Flask debug, so `TEMPLATES_AUTO_RELOAD=False`. Edits to `templates/*.html` are **not** picked up until `.\theoos-web.exe restart`. A clean `/health` + 200 OK on `/config` after an edit is *not* proof the fix worked â€” must check the rendered body (`curl -s http://localhost:5000/login -b cookies.txt | grep "panel-title"`).
 - Same applies to blueprint changes (which need a full restart anyway).
 
 #### Admin auto-bootstrap leaks password to log
 - `theoos/auth.py:105` uses `secrets.token_urlsafe(12)` when `THEOOS_ADMIN_PASSWORD` is unset, then logs the cleartext password as WARNING. The line lives forever in `logs/theoos.log` and will be committed if the log ever gets versioned. Define `THEOOS_ADMIN_PASSWORD` in `.env` before first boot, or rotate the password and `> logs/theoos.log` after first login.
 
 #### WinSW reinstall without admin
-- Non-admin sessions can't run `sc.exe delete` (Access Denied) but `theoos-web.exe uninstall` + `install` *do* work, because WinSW talks to SCM with the original installer's privileges. Path: `.\theoos-web.exe uninstall ; Start-Sleep 5 ; .\theoos-web.exe install ; .\theoos-web.exe start`. Orphan python processes from the restart loop are SYSTEM-owned and survive — only `taskkill /F /T /PID <pid>` from an elevated shell, or a reboot, removes them.
+- Non-admin sessions can't run `sc.exe delete` (Access Denied) but `theoos-web.exe uninstall` + `install` *do* work, because WinSW talks to SCM with the original installer's privileges. Path: `.\theoos-web.exe uninstall ; Start-Sleep 5 ; .\theoos-web.exe install ; .\theoos-web.exe start`. Orphan python processes from the restart loop are SYSTEM-owned and survive â€” only `taskkill /F /T /PID <pid>` from an elevated shell, or a reboot, removes them.
 
 ---
 
@@ -199,15 +199,16 @@ Web service restart-looped every ~10s and bot never started. Two independent roo
 
 | Area | Route / file |
 |------|----------------|
-| Dashboard | `/` → `index.html`, `semana` from `insights.week_agenda` |
-| Config | `/config` → PIN, reminders, theme, backup, recurring, web notify |
+| Dashboard | `/` â†’ `index.html`, `semana` from `insights.week_agenda` |
+| Config | `/config` â†’ PIN, reminders, theme, backup, recurring, web notify |
 | Health | `/health` |
 | PDF | `/exportar/pdf` |
-| Lista Telegram | `/lista` no bot → `theoos/telegram_lista.py` |
-| Menu Telegram | `/start`, `/ajuda` → `theoos/telegram_format.py` (botões `menu:*`) |
-| Catálogo produtos | `/categorias` → `theoos/produtos.py` |
+| Lista Telegram | `/lista` no bot â†’ `theoos/telegram_lista.py` |
+| Menu Telegram | `/start`, `/ajuda` â†’ `theoos/telegram_format.py` (botÃµes `menu:*`) |
+| CatÃ¡logo produtos | `/categorias` â†’ `theoos/produtos.py` |
 | Autocomplete lista | `/api/sugerir_produtos?q=` |
-| Detetive preços | `/pesquisa` → `insights.pesquisa_resultados` |
+| Detetive preÃ§os | `/pesquisa` â†’ `insights.produto_price_history`, typeahead `/api/produtos/typeahead` |
+| Reprocessar catÃ¡logo | `/config/reprocessar-catalogo` â†’ `theoos/produtos.py` |
 | Notifications API | `/api/vencimentos` |
 | WinSW install | `scripts/install-winsw.ps1` (Admin) |
 
@@ -215,14 +216,45 @@ Web service restart-looped every ~10s and bot never started. Two independent roo
 
 ## Known limitations
 
-- Browser notifications blocked on `http://<LAN-IP>` — use `localhost` or HTTPS.
+- Browser notifications blocked on `http://<LAN-IP>` â€” use `localhost` or HTTPS.
 - PWA service worker only caches `/static/*` (scope under `/static/`).
 - PDF uses Latin-1 safe text (accents may simplify).
-- Detetive: nomes OCR distintos no mesmo cupom (ex. “Requeijão” vs “Requeijão Cremoso”) ficam em linhas separadas; mesma linha lógica agrupa por nome exato.
-- Telegram botão “Abrir no app” precisa `THEOOS_WEB_URL` com IP LAN (não `localhost`).
-- OneDrive path for project — WinSW `workingdirectory` is `%BASE%` (project root).
-- **Não** rodar `python bot.py` manualmente com WinSW ativo — causa conflito 409 e respostas antigas.
-- Bot Telegram: serviço correto é `theoos-bot.exe` (não `theoss-bot.exe`).
+- Detetive: usa catálogo de produtos como vocabulário controlado via autocomplete. Busca textual livre removida.
+- Telegram botÃ£o â€œAbrir no appâ€ precisa `THEOOS_WEB_URL` com IP LAN (nÃ£o `localhost`).
+- OneDrive path for project â€” WinSW `workingdirectory` is `%BASE%` (project root).
+- **NÃ£o** rodar `python bot.py` manualmente com WinSW ativo â€” causa conflito 409 e respostas antigas.
+- Bot Telegram: serviÃ§o correto Ã© `theoos-bot.exe` (nÃ£o `theoss-bot.exe`).
+
+### UI/UX Redesign & Price Detective Reform (June 2026)
+
+#### Sprints 1â€“4 â€” UI/UX hardening
+- **CSS:** `transition: all` â†’ propriedades explÃ­citas; `touch-action: manipulation`; `-webkit-tap-highlight-color`; `overscroll-behavior: contain` nos modais; `content-visibility: auto` em tabelas e listas longas; `scroll-margin-top` no `:target`; safe-area-inset para mobile.
+- **JS:** `innerHTML +=` substituÃ­do por `createDocumentFragment()` (anti-XSS); listeners delegados no `document` para sobreviver swaps HTMX; `Intl.DateTimeFormat`/`Intl.NumberFormat` substituem datas/nÃºmeros hardcoded.
+- **Acessibilidade:** skip-link "Pular para conteÃºdo"; `role="heading" aria-level="2"` nos `.panel-title`; `aria-live` para aÃ§Ãµes assÃ­ncronas; toast system (`TheoOS.toast()`) com suporte a undo.
+- **Templates:** breadcrumb em 10 pÃ¡ginas; macro `unidade_label` elimina 3Ã— cÃ³digo repetido; macro `cat_icon` (SVG) substitui emojis no gerenciador de categorias; macro `spark_svg` para mini-sparklines.
+
+#### Sprints 5â€“7 â€” Dashboard pro-ativo + performance
+- **Dashboard:** banner vermelho de contas vencidas; mini-sparklines nos KPIs; cards de projeÃ§Ã£o de saldo em 7/15/30 dias.
+- **OrÃ§amento:** banner de alerta quando categoria â‰¥ 80%.
+- **PWA:** Service Worker v3 â€” cache offline para navegaÃ§Ã£o (`request.mode === 'navigate'`); versÃ£o de cache incrementada.
+- **Lista:** undo toast (6s) ao remover item.
+- **iOS:** `-webkit-overflow-scrolling: touch` em Ã¡reas de tabela.
+
+#### Sprints 8â€“10 â€” Detetive de PreÃ§os 2.0 (Explorador de Produtos)
+- **Problema raiz:** busca textual livre (`ILIKE %termo%`) casava substrings irrelevantes (ex: "batata" â†’ "banana prata").
+- **SoluÃ§Ã£o:** substituÃ­do por **catÃ¡logo como vocabulÃ¡rio controlado**:
+  - Autocomplete typeahead: `/api/produtos/typeahead?q=` busca no `Produto.nome` e `aliases`.
+  - Detalhe do produto: `/api/produto/<id>/historico` â†’ `insights.produto_price_history()`.
+  - PÃ¡gina exibe: card hero (nome, categoria, preÃ§o mÃ©dio, tendÃªncia), KPIs (menor/maior preÃ§o, total compras), grÃ¡fico de linha (evoluÃ§Ã£o), grÃ¡fico de barras (por mercado), tabela de histÃ³rico.
+- **Agrupamento corrigido:** `_collapse_pesquisa_rows` usa `produto_id` como chave primÃ¡ria, nÃ£o `nome_normalizado` OCR.
+- **Unidades normalizadas:** `_norm_unidade` cobre 30+ variaÃ§Ãµes (`undâ†’un`, `kiloâ†’kg`, `lataâ†’un`, etc.).
+- **Re-vinculaÃ§Ã£o:** botÃ£o "Re-vincular itens" em `/categorias` â†’ `reprocess_items_against_catalog()` percorre itens sem `produto_id` e tenta casar com catÃ¡logo usando `combined_similarity`.
+
+#### Pip dependency conflict (google-genai)
+- `aider-chat` trava `pydantic==2.12.5`, `requests==2.32.5`, etc.
+- `requirements.txt` pede `google-genai==1.0.0` que puxa versÃµes mais novas â†’ quebra `google.genai._interactions.types`.
+- **Workaround:** instalar com `pip install google-genai==1.0.0 --no-deps`.
+- **SoluÃ§Ã£o definitiva:** ambiente virtual isolado (`python -m venv .venv`).
 
 ---
 
