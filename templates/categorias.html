@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui.html' import flash_messages, chip %}
+{% from 'macros/ui.html' import flash_messages, chip, breadcrumb, cat_icon %}
 {% block title %}Gerenciador de Categorias{% endblock %}
 
 {% block styles %}{% endblock %}
@@ -10,6 +10,7 @@
 
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/categorias', 'label': 'Categorias'}]) }}
     <h1 class="page-heading">Gerenciador de <em>Categorias</em></h1>
     <p class="page-sub">{{ categorias | length }} categoria{% if categorias | length != 1 %}s{% endif %} cadastrada{% if categorias | length != 1 %}s{% endif %}</p>
   </div>
@@ -52,21 +53,7 @@
       {% for cat in categorias %}
         <div class="cat-card {% if cat.nome | lower == 'outros' %}protected{% endif %}">
           <div class="cat-icon">
-            {% if cat.nome | lower == 'hortifruti' %}🥦
-            {% elif cat.nome | lower == 'supermercado' %}🛒
-            {% elif cat.nome | lower == 'farmácia' or cat.nome | lower == 'farmacia' %}💊
-            {% elif 'suplemento' in cat.nome | lower %}💪
-            {% elif cat.nome | lower == 'luz' %}💡
-            {% elif cat.nome | lower == 'internet' %}📡
-            {% elif 'condomínio' in cat.nome | lower or 'condominio' in cat.nome | lower %}🏢
-            {% elif 'cartão' in cat.nome | lower or 'cartao' in cat.nome | lower %}💳
-            {% elif 'théo' in cat.nome | lower or 'theo' in cat.nome | lower %}🧒
-            {% elif 'veterinário' in cat.nome | lower or 'veterinario' in cat.nome | lower %}🐾
-            {% elif 'combustível' in cat.nome | lower or 'combustivel' in cat.nome | lower %}⛽
-            {% elif 'vacina' in cat.nome | lower %}💉
-            {% elif 'outros' in cat.nome | lower %}🗂️
-            {% else %}🏷️
-            {% endif %}
+            {{ cat_icon(cat.nome) }}
           </div>
           <div class="cat-name">
             {{ cat.nome }}
@@ -104,7 +91,9 @@
     </div>
   {% else %}
     <div class="empty-state">
-      <div class="empty-state-icon">🗂️</div>
+      <div class="empty-state-graphic" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+      </div>
       <p>Nenhuma categoria cadastrada ainda.</p>
     </div>
   {% endif %}
@@ -120,6 +109,10 @@
     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
       <input type="text" id="busca-produtos" class="form-input" placeholder="🔍 Filtrar produtos..." onkeyup="filtrarProdutos()" style="margin-bottom: 0; max-width: 220px; height: 34px; padding: 4px 8px; font-size: 13px;">
       <button type="button" id="btn-unificar" class="btn btn-outline btn-sm" onclick="unificarProdutos()" disabled title="Selecione 2 ou mais produtos">🔗 Unificar selecionados</button>
+      <form action="{{ url_for('config.reprocessar_catalogo') }}" method="POST" style="display:inline;margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Re-avaliar todos os itens contra o catálogo? Itens já vinculados não serão alterados.')" title="Re-vincula itens sem catálogo">🔄 Re-vincular itens</button>
+      </form>
     </div>
   </div>
   <p class="form-hint" style="padding: 0 16px 12px; margin: 0; border-bottom: 1px solid var(--border);">

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui.html' import flash_messages, chip %}
+{% from 'macros/ui.html' import flash_messages, chip, breadcrumb %}
 {% from 'macros/bills.html' import bill_row_receber %}
 {% block title %}Contas a Receber{% endblock %}
 
@@ -11,6 +11,7 @@
 
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/receber', 'label': 'Contas a Receber'}]) }}
     <h1 class="page-heading">Contas a <em>Receber</em></h1>
     <p class="page-sub">{{ contas | length }} recebível{% if contas | length != 1 %}s{% endif %} pendente{% if contas | length != 1 %}s{% endif %}</p>
   </div>
@@ -23,7 +24,7 @@
 <!-- Add Form -->
 <div class="panel reveal" id="novo-recebivel">
   <div class="panel-header">
-    <div class="panel-title">Cadastrar Novo Recebível</div>
+    <div class="panel-title" role="heading" aria-level="2">Cadastrar Novo Recebível</div>
   </div>
   <div class="panel-body">
     {% if is_admin %}<form action="/receber" method="POST" enctype="multipart/form-data">{% endif %}
@@ -76,7 +77,7 @@
 <!-- Receivables List -->
 <div class="panel reveal" style="margin-top:20px">
   <div class="panel-header">
-    <div class="panel-title">Entradas Previstas</div>
+    <div class="panel-title" role="heading" aria-level="2">Entradas Previstas</div>
   </div>
 
   {% if contas %}
@@ -303,70 +304,21 @@ function closeEditModal(e) {
   }
 }
 
-// File input preview logic
-document.addEventListener('change', e => {
-  if (e.target && e.target.type === 'file') {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = evt => {
-        let previewContainer = e.target.parentNode.querySelector('.file-preview');
-        if (!previewContainer) {
-          previewContainer = document.createElement('div');
-          previewContainer.className = 'file-preview';
-          previewContainer.style.marginTop = '10px';
-          previewContainer.style.position = 'relative';
-          previewContainer.style.width = 'fit-content';
-          e.target.parentNode.appendChild(previewContainer);
-        }
-        previewContainer.innerHTML = `
-          <img src="${evt.target.result}" style="max-height: 80px; border-radius: 6px; border: 1px solid var(--border)">
-          <button type="button" onclick="clearFileInput(this)" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--terra); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px;">✕</button>
-        `;
-      };
-      reader.readAsDataURL(file);
-    } else {
-      let previewContainer = e.target.parentNode.querySelector('.file-preview');
-      if (previewContainer) previewContainer.remove();
-    }
+// File input preview — delegated listener
+document.addEventListener('change', function(e) {
+  if (!e.target || e.target.type !== 'file' || !e.target.accept) return;
+  var nameSpan;
+  if (e.target.id === 'foto-input') nameSpan = document.getElementById('foto-file-name');
+  else if (e.target.id === 'edit-foto-input') nameSpan = document.getElementById('edit-foto-file-name');
+  else return;
+  var file = e.target.files[0];
+  if (file) {
+    nameSpan.textContent = file.name;
+    nameSpan.style.color = 'var(--brand)';
+  } else {
+    nameSpan.textContent = 'Nenhum';
+    nameSpan.style.color = 'var(--text-secondary)';
   }
-});
-
-function clearFileInput(btn) {
-  const container = btn.parentNode;
-  const input = container.parentNode.querySelector('input[type="file"]');
-  if (input) {
-    input.value = '';
-    if (input.id === 'foto-input') {
-      const span = document.getElementById('foto-file-name');
-      if (span) { span.textContent = 'Nenhum'; span.style.color = 'var(--muted)'; }
-    } else if (input.id === 'edit-foto-input') {
-      const span = document.getElementById('edit-foto-file-name');
-      if (span) { span.textContent = 'Nenhum'; span.style.color = 'var(--muted)'; }
-    }
-  }
-  container.remove();
-}
-
-const setupFileInputNameListener = (inputId, nameId) => {
-  const input = document.getElementById(inputId);
-  const nameSpan = document.getElementById(nameId);
-  if (input && nameSpan) {
-    input.addEventListener('change', e => {
-      if (e.target.files.length > 0) {
-        nameSpan.textContent = e.target.files[0].name;
-        nameSpan.style.color = 'var(--gold)';
-      } else {
-        nameSpan.textContent = 'Nenhum';
-        nameSpan.style.color = 'var(--muted)';
-      }
-    });
-  }
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-  setupFileInputNameListener('foto-input', 'foto-file-name');
-  setupFileInputNameListener('edit-foto-input', 'edit-foto-file-name');
 });
 
 function toggleRecorrencia() {

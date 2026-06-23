@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Configurações{% endblock %}
-{% from 'macros/ui.html' import flash_messages %}
+{% from 'macros/ui.html' import flash_messages, breadcrumb %}
 
 {% block conteudo %}
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/config', 'label': 'Configurações'}]) }}
     <h1 class="page-heading">Configurações</h1>
     <p class="page-sub">Segurança, lembretes, backup e contas fixas</p>
   </div>
@@ -15,7 +16,7 @@
 
   <div class="panel settings-panel">
     <div class="panel-header">
-      <div class="panel-title">Segurança</div>
+      <div class="panel-title" role="heading" aria-level="2">Segurança</div>
       {% if pin_enabled %}<span class="chip chip-success">PIN ativo</span>{% endif %}
     </div>
     <div class="panel-body">
@@ -48,7 +49,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Lembretes no Telegram</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Lembretes no Telegram</div></div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -64,7 +65,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Notificações no navegador</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Notificações no navegador</div></div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -82,7 +83,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Aparência</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Aparência</div></div>
     <div class="panel-body">
       <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -98,7 +99,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Backup e restauração</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Backup e restauração</div></div>
     <div class="panel-body form-stack">
       <a href="{{ url_for('config.config_backup') }}" class="btn btn-primary">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -116,7 +117,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Contas fixas mensais</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Contas fixas mensais</div></div>
     <div class="panel-body">
       <form method="POST" class="form-stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -171,7 +172,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Auditoria</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Auditoria</div></div>
     <div class="panel-body">
       {% if audit_logs %}
       <ul class="audit-list">
@@ -186,7 +187,7 @@
   </div>
 
   <div class="panel settings-panel">
-    <div class="panel-header"><div class="panel-title">Dados e sessão</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Dados e sessão</div></div>
     <div class="panel-body settings-actions">
       <a href="{{ url_for('relatorios.exportar') }}" class="btn btn-ghost btn-sm">Exportar itens CSV</a>
       <a href="{{ url_for('config.exportar_fluxo_caixa') }}" class="btn btn-ghost btn-sm">Fluxo de caixa</a>

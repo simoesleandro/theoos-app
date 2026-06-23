@@ -4,17 +4,14 @@
 {% block conteudo %}
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/config', 'label': 'Configurações'}, {'url': '/config/usuarios', 'label': 'Usuários'}]) }}
     <h1 class="page-heading">Gestão de <em>Usuários</em></h1>
     <p class="page-sub">Admin e Viewer. Admin pode tudo; Viewer só leitura.</p>
   </div>
   <a href="/config" class="btn btn-ghost">← Configurações</a>
 </div>
 
-{{ flash_messages() if flash_messages else '' }}
-
-{% if request.endpoint %}
-{% from 'macros/ui.html' import flash_messages %}
-{% endif %}
+{{ flash_messages() }}
 
 <div class="panel reveal">
   <div class="panel-header">

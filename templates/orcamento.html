@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui.html' import flash_messages, chip %}
+{% from 'macros/ui.html' import flash_messages, chip, breadcrumb %}
 {% block title %}Orçamento{% endblock %}
 
 {% block styles %}{% endblock %}
@@ -7,6 +7,7 @@
 {% block conteudo %}
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/orcamento', 'label': 'Orçamento'}]) }}
     <h1 class="page-heading">Controle de <em>Orçamento</em></h1>
     <p class="page-sub">Defina limites mensais por categoria. Saldo não usado vira envelope para o próximo mês.</p>
   </div>
@@ -28,7 +29,7 @@
 
     <div class="panel reveal">
       <div class="panel-header">
-        <div class="panel-title">Definir Limite Mensal</div>
+        <div class="panel-title" role="heading" aria-level="2">Definir Limite Mensal</div>
       </div>
       <div class="panel-body">
         {% if is_admin %}<form action="/orcamento" method="POST">{% endif %}
@@ -69,7 +70,7 @@
     {% if cats_sem_orc %}
     <div class="panel reveal">
       <div class="panel-header">
-        <div class="panel-title">Categorias sem Orçamento</div>
+        <div class="panel-title" role="heading" aria-level="2">Categorias sem Orçamento</div>
       </div>
       {% for cat in cats_sem_orc %}
       <div class="no-budget-row">
@@ -83,10 +84,22 @@
 
   <div class="panel reveal">
     <div class="panel-header">
-      <div class="panel-title">Envelopes do Mês</div>
+      <div class="panel-title" role="heading" aria-level="2">Envelopes do Mês</div>
     </div>
 
     {% if envelopes %}
+      {% set alertas_orc = envelopes | selectattr('pct', '>=', 80) | list %}
+      {% if alertas_orc %}
+      <div class="budget-alert-banner" role="alert">
+        {% for a in alertas_orc %}
+        <div class="budget-alert-item">
+          <span class="status-hint {% if a.excedeu %}danger{% else %}warning{% endif %}">{{ a.categoria }}</span>
+          <span>está em <strong>{{ a.pct | round(0) | int }}%</strong> — {{ a.gasto | dinheiro }} de {{ a.disponivel | dinheiro }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       {% for e in envelopes %}
         {% set pct = (e.pct) %}
         {% set pct_clamped = [pct, 100] | min %}

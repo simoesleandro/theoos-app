@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui.html' import flash_messages, chip, empty_state %}
+{% from 'macros/ui.html' import flash_messages, chip, empty_state, unidade_label, breadcrumb %}
 {% block title %}Lista de Compras{% endblock %}
 
 {% block styles %}{% endblock %}
@@ -10,6 +10,7 @@
 
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/lista', 'label': 'Lista de Compras'}]) }}
     <h1 class="page-heading">Lista de <em>Compras</em></h1>
     <p class="page-sub">
       {{ itens_pendentes | length }} pendente{% if itens_pendentes | length != 1 %}s{% endif %}
@@ -40,7 +41,7 @@
 <!-- Formulário de adição -->
 <div class="panel reveal" id="adicionar-item">
   <div class="panel-header">
-    <div class="panel-title">Adicionar Item</div>
+    <div class="panel-title" role="heading" aria-level="2">Adicionar Item</div>
     <a href="/upload_nota" class="panel-action">📷 Processar cupom →</a>
   </div>
   <div class="panel-body">
@@ -95,7 +96,7 @@
 <div class="panel reveal">
   <div class="panel-header panel-toolbar">
     <div>
-      <div class="panel-title">Pendentes</div>
+      <div class="panel-title" role="heading" aria-level="2">Pendentes</div>
       <span class="panel-toolbar-meta">{{ itens_pendentes | length }} item{% if itens_pendentes | length != 1 %}s{% endif %}</span>
     </div>
     <div class="panel-toolbar-actions"></div>
@@ -175,15 +176,7 @@
             </td>
             <td style="color: var(--text-secondary); font-size: 13.5px;">{{ item.marca or '—' }}</td>
             <td class="font-roboto" style="text-align: right; font-size: 13.5px;">{{ item.quantidade | numero }}</td>
-            <td style="color: var(--text-secondary); font-size: 13px;">
-              {% if item.unidade == 'un' %}Un
-              {% elif item.unidade == 'kg' %}Kg
-              {% elif item.unidade == 'cx' or item.unidade == 'Cx' %}Cx
-              {% elif item.unidade == 'ml' %}Ml
-              {% elif item.unidade == 'l' or item.unidade == 'L' %}L
-              {% elif item.unidade == 'g' %}g
-              {% else %}{{ item.unidade }}{% endif %}
-            </td>
+            <td style="color: var(--text-secondary); font-size: 13px;">{{ unidade_label(item.unidade) }}</td>
             <td>{{ chip(item.categoria) }}</td>
             <td class="font-roboto" style="text-align: right; vertical-align: middle;">
               {% if item.ultimo_preco %}
@@ -226,7 +219,7 @@
 <div class="panel reveal">
   <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
     <div style="display: flex; align-items: baseline; gap: 12px;">
-      <div class="panel-title">Produtos do Histórico / Cadastrados</div>
+      <div class="panel-title" role="heading" aria-level="2">Produtos do Histórico / Cadastrados</div>
       <span style="font-size:12px;color:var(--muted)">{{ produtos_historico | length }} item{% if produtos_historico | length != 1 %}s{% endif %}</span>
     </div>
     <input type="text" id="busca-historico" class="form-input" placeholder="🔍 Filtrar histórico..." onkeyup="filtrarHistorico()" style="margin-bottom: 0; max-width: 240px; height: 34px; padding: 4px 8px; font-size: 13px;">
@@ -252,15 +245,7 @@
                 <strong style="color: var(--cream); font-weight: 500; font-size: 14px;">{{ prod.nome_item }}</strong>
               </td>
               <td style="color: var(--muted); font-size: 13.5px;">{{ prod.marca or '' }}</td>
-              <td style="color: var(--muted); font-size: 13px;">
-                {% if prod.unidade == 'un' %}Un (unidade)
-                {% elif prod.unidade == 'kg' %}Kg (kilograma)
-                {% elif prod.unidade == 'cx' or prod.unidade == 'Cx' %}Cx (caixa)
-                {% elif prod.unidade == 'ml' %}Ml (mililitro)
-                {% elif prod.unidade == 'l' or prod.unidade == 'L' %}L (litro)
-                {% elif prod.unidade == 'g' %}g (grama)
-                {% else %}{{ prod.unidade }}{% endif %}
-              </td>
+              <td style="color: var(--muted); font-size: 13px;">{{ unidade_label(prod.unidade) }}</td>
               <td>
                 {{ chip(prod.categoria) }}
               </td>
@@ -316,15 +301,7 @@
             <td style="color: var(--muted); text-decoration: line-through; font-size: 14px;">{{ item.item }}</td>
             <td style="color: var(--muted); text-decoration: line-through; font-size: 13.5px;">{{ item.marca or '' }}</td>
             <td class="font-roboto" style="text-align: right; color: var(--muted); text-decoration: line-through; font-size: 14px;">{{ item.quantidade | numero }}</td>
-            <td style="color: var(--muted); font-size: 13px; text-decoration: line-through;">
-              {% if item.unidade == 'un' %}Un (unidade)
-              {% elif item.unidade == 'kg' %}Kg (kilograma)
-              {% elif item.unidade == 'cx' or item.unidade == 'Cx' %}Cx (caixa)
-              {% elif item.unidade == 'ml' %}Ml (mililitro)
-              {% elif item.unidade == 'l' or item.unidade == 'L' %}L (litro)
-              {% elif item.unidade == 'g' %}g (grama)
-              {% else %}{{ item.unidade }}{% endif %}
-            </td>
+            <td style="color: var(--muted); font-size: 13px; text-decoration: line-through;">{{ unidade_label(item.unidade) }}</td>
             <td>
               <span class="chip {{ chip_class(item.categoria) }}" style="opacity:0.5">{{ item.categoria }}</span>
             </td>
@@ -621,6 +598,28 @@ document.addEventListener('DOMContentLoaded', () => {
       categoriaSelect: document.getElementById('editar-categoria'),
     });
   }
+});
+
+document.addEventListener('click', function(e) {
+  var delBtn = e.target.closest('.btn-danger.btn-sm');
+  if (!delBtn) return;
+  var form = delBtn.closest('form');
+  if (!form || form.action.indexOf('/lista/delete/') < 0) return;
+  e.preventDefault();
+  var itemName = '';
+  var prev = delBtn.closest('article, tr');
+  if (prev) {
+    var nameEl = prev.querySelector('.lista-card-name, .lista-readonly-name, strong');
+    if (nameEl) itemName = nameEl.textContent.trim().split(' ')[0];
+  }
+  var msg = itemName ? '"' + itemName + '" removido' : 'Item removido';
+  var formClone = form.cloneNode(true);
+  TheoOS.toast(msg, {
+    undoLabel: 'Desfazer',
+    duration: 6000,
+    onUndo: function() { formClone.style.display = 'none'; TheoOS.toast('Restaurado'); }
+  });
+  setTimeout(function() { form.submit(); }, 6000);
 });
 </script>
 {% endblock %}

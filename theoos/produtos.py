@@ -516,3 +516,86 @@ def delete_produto_catalog(db, Produto, ItemGasto, produto_id):
     )
     db.session.delete(produto)
     db.session.commit()
+
+
+def reprocess_items_against_catalog(db, Produto, ItemGasto, dry_run=False):
+    """Re-processa todos os itens sem vínculo contra o catálogo de produtos.
+    
+    Para cada ItemGasto sem produto_id, tenta encontrar o produto canônico
+    usando combine_similarity e atualiza nome_normalizado, marca, unidade,
+    categoria e produto_id. Itens já vinculados são ignorados.
+    
+    Args:
+        dry_run: se True, apenas conta quantos seriam atualizados sem modificar.
+    
+    Returns:
+        dict com {atualizados, total_sem_vinculo, erros}
+    """
+    catalog = build_catalog_from_produto(db, Produto, limit=500)
+    if not catalog:
+        return {"atualizados": 0, "total_sem_vinculo": 0, "erros": 0, "mensagem": "Catálogo vazio. Cadastre produtos primeiro."}
+
+    unlinked = ItemGasto.query.filter(
+        ItemGasto.produto_id.is_(None),
+    ).all()
+
+    if not unlinked:
+        return {"atualizados": 0, "total_sem_vinculo": 0, "erros": 0, "mensagem": "Todos os itens já estão vinculados ao catálogo."}
+
+    updated = 0
+    errors = 0
+    batch = []
+
+    for it in unlinked:
+        try:
+            nome_candidato = it.nome_normalizado or it.nome or ""
+            nome_normalizado, matched_entry = resolve_nome_normalizado(
+                it.nome or nome_candidato,
+                nome_candidato,
+                it.marca,
+                it.unidade,
+                catalog,
+            )
+
+            if matched_entry and matched_entry.get("id"):
+                pid = matched_entry["id"]
+                produto = db.session.get(Produto, pid)
+                if produto:
+                    it.produto_id = pid
+                    it.nome_normalizado = produto.nome
+                    if not it.marca and produto.marca:
+                        it.marca = produto.marca
+                    if not it.categoria and produto.categoria:
+                        it.categoria = produto.categoria
+                    if not it.unidade or it.unidade.lower() in ("", "un", "und"):
+                        it.unidade = produto.unidade
+                    updated += 1
+                    batch.append(it)
+                else:
+                    continue
+
+            if nome_normalizado and not matched_entry:
+                it.nome_normalizado = nome_normalizado
+                updated += 1
+                batch.append(it)
+
+        except Exception:
+            errors += 1
+
+        if len(batch) >= 50:
+            if not dry_run:
+                db.session.flush()
+            batch.clear()
+
+    if batch and not dry_run:
+        db.session.flush()
+
+    if not dry_run:
+        db.session.commit()
+
+    return {
+        "atualizados": updated,
+        "total_sem_vinculo": len(unlinked),
+        "erros": errors,
+        "mensagem": f"{updated} de {len(unlinked)} itens atualizados." + (" (dry-run)" if dry_run else ""),
+    }

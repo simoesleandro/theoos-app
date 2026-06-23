@@ -1,9 +1,20 @@
 {% extends "base.html" %}
-{% from 'macros/ui.html' import chip %}
+{% from 'macros/ui.html' import chip, breadcrumb, spark_svg %}
 {% from 'macros/bills.html' import bill_row_pagar, bill_row_receber %}
 {% block title %}Dashboard{% endblock %}
 
 {% block conteudo %}
+{% set vencidas = semana.contas | selectattr('data_vencimento', '<', hoje) | list %}
+{% if vencidas %}
+<div class="overdue-banner reveal" role="alert">
+  <div class="overdue-banner-content">
+    <svg class="overdue-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span><strong>{{ vencidas | length }}</strong> conta{% if vencidas | length != 1 %}s{% endif %} vencida{% if vencidas | length != 1 %}s{% endif %} — <strong>{{ vencidas | sum(attribute='valor') | dinheiro }}</strong> em atraso</span>
+  </div>
+  <a href="/contas" class="btn btn-danger btn-sm">Resolver</a>
+</div>
+{% endif %}
+
 <div class="page-header reveal">
   <div>
     <h1 class="page-heading">Visão <em>geral</em></h1>
@@ -36,6 +47,7 @@
     {% else %}
       <div class="kpi-delta">{{ total_creditos_mes_anterior | dinheiro }} mês ant.</div>
     {% endif %}
+    {{ spark_svg(valores_creditos[-7:], 'var(--success)') }}
   </div>
 
   <div class="kpi-card kpi-danger reveal reveal-2">
@@ -49,6 +61,7 @@
     {% else %}
       <div class="kpi-delta">{{ total_debitos_mes_anterior | dinheiro }} mês ant.</div>
     {% endif %}
+    {{ spark_svg(valores_debitos[-7:], 'var(--danger)') }}
   </div>
 
   <div class="kpi-card {% if saldo_mes >= 0 %}kpi-success{% else %}kpi-danger{% endif %} reveal reveal-3">
@@ -58,6 +71,9 @@
       <span class="count-up" data-target="{{ saldo_mes|round(2) }}" data-float="1">0</span>
     </div>
     <div class="kpi-delta">líquido recebido − gasto</div>
+    {% set net_vals = [] %}
+    {% for i in range(valores_creditos | length) %}{% set _ = net_vals.append(valores_creditos[i] - valores_debitos[i]) %}{% endfor %}
+    {{ spark_svg(net_vals[-7:], 'var(--brand)') }}
   </div>
 
   <div class="kpi-card kpi-warning reveal reveal-4">
@@ -67,6 +83,20 @@
   </div>
 </div>
 
+{% if projecoes %}
+<div class="projection-strip reveal">
+  {% for dias, p in [(7, projecoes[7]), (15, projecoes[15]), (30, projecoes[30])] %}
+  <div class="projection-card kpi-card {% if p.saldo_projetado >= 0 %}kpi-success{% else %}kpi-danger{% endif %}">
+    <div class="kpi-label">Saldo em {{ dias }} dias</div>
+    <div class="kpi-value" style="font-size:var(--text-xl);color:{% if p.saldo_projetado >= 0 %}var(--success){% else %}var(--danger){% endif %}">
+      {{ p.saldo_projetado | dinheiro }}
+    </div>
+    <div class="kpi-delta">+{{ p.receitas | dinheiro }} receita · −{{ p.despesas | dinheiro }} despesa</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="bills-grid reveal"
      hx-get="{{ url_for('dashboard.api_dashboard_week') }}"
      hx-trigger="every 60s"
@@ -75,7 +105,7 @@
   <div class="panel">
     <div class="panel-header">
       <div>
-        <div class="panel-title">Contas a vencer</div>
+        <div class="panel-title" role="heading" aria-level="2">Contas a vencer</div>
         <p class="panel-sub">Próximos 7 dias · {{ semana.total_pagar | dinheiro }}</p>
       </div>
       <a href="/contas" class="panel-action">Gerenciar</a>
@@ -321,15 +351,13 @@ document.querySelectorAll('[data-bill-expand]').forEach(list => {
 });
 
 (function() {
-  const days = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
-  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const d = new Date();
   document.getElementById('current-date').textContent =
-    `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]} de ${d.getFullYear()}`;
+    d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 })();
 
 function formatNumberBR(val) {
-  return val.toFixed(2).replace('.', ',').replace(/\d(?=(\d{3})+,)/g, '$&.');
+  return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function animateCount(el) {
   const target = parseFloat(el.dataset.target) || 0;
@@ -408,15 +436,32 @@ document.querySelectorAll('.count-up').forEach(el => {
   });
   const total = values.reduce((a, b) => a + b, 0);
   const leg = document.getElementById('donut-legend');
+  const frag = document.createDocumentFragment();
   labels.forEach((l, i) => {
     const pct = total > 0 ? values[i] / total * 100 : 0;
     const col = colors[i];
-    leg.innerHTML += `<div class="donut-legend-item">
-      <span class="donut-legend-label" style="color:${col}">${l}</span>
-      <div class="donut-bar-wrap"><div class="donut-bar" style="width:${pct}%;background:${col}"></div></div>
-      <span class="donut-val">R$ ${Math.round(values[i]).toLocaleString('pt-BR')}</span>
-    </div>`;
+    const div = document.createElement('div');
+    div.className = 'donut-legend-item';
+    const label = document.createElement('span');
+    label.className = 'donut-legend-label';
+    label.style.color = col;
+    label.textContent = l;
+    const barWrap = document.createElement('div');
+    barWrap.className = 'donut-bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'donut-bar';
+    bar.style.width = pct + '%';
+    bar.style.background = col;
+    barWrap.appendChild(bar);
+    const val = document.createElement('span');
+    val.className = 'donut-val';
+    val.textContent = 'R$ ' + Math.round(values[i]).toLocaleString('pt-BR');
+    div.appendChild(label);
+    div.appendChild(barWrap);
+    div.appendChild(val);
+    frag.appendChild(div);
   });
+  leg.appendChild(frag);
 })();
 </script>
 {% endblock %}

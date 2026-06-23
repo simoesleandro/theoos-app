@@ -1,12 +1,13 @@
 {% extends "base.html" %}
-{% from 'macros/ui.html' import chip, empty_state %}
+{% from 'macros/ui.html' import chip, empty_state, breadcrumb %}
 {% block title %}Detetive de Preços{% endblock %}
 
 {% block conteudo %}
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/pesquisa', 'label': 'Detetive de Preços'}]) }}
     <h1 class="page-heading">Detetive de <em>Preços</em></h1>
-    <p class="page-sub">Histórico e comparador de preços por produto</p>
+    <p class="page-sub">Selecione um produto do catálogo para ver o histórico completo</p>
   </div>
   <div class="page-actions">
     <a href="/" class="btn btn-ghost">Voltar</a>
@@ -14,30 +15,28 @@
 </div>
 
 <div class="search-sticky reveal">
-  <form action="/pesquisa" method="GET">
-    <div class="search-wrap">
-      <div class="search-field">
-        <label class="form-label" for="q">Buscar produto</label>
-        <input type="text" id="q" name="q" class="form-input" value="{{ termo }}"
-               placeholder="Ex: Iogurte, Arroz, Frango..." {% if not termo %}autofocus{% endif %} required>
-      </div>
-      <button type="submit" class="btn btn-primary">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Buscar
-      </button>
+  <div class="search-wrap">
+    <div class="search-field autocomplete-wrap">
+      <label class="form-label" for="prod-search">Buscar produto no catálogo</label>
+      <input type="text" id="prod-search" class="form-input" placeholder="Digite o nome do produto…" autocomplete="off" autofocus>
+      <ul id="prod-suggestions" class="autocomplete-list" hidden></ul>
     </div>
-  </form>
+    <button type="button" id="btn-search-prod" class="btn btn-primary" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Analisar
+    </button>
+  </div>
 </div>
 
 {% if itens_populares %}
 <div class="panel freq-panel reveal">
   <div class="panel-body">
-    <div class="freq-title">Itens frequentes</div>
-    <div class="freq-chips">
+    <div class="freq-title">Produtos no catálogo</div>
+    <div class="freq-chips" id="catalog-chips">
       {% for item in itens_populares %}
-      <a href="/pesquisa?q={{ item | urlencode }}" class="chip-link">
+      <a href="?produto_id={{ item.id }}" class="chip-link">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        {{ item }}
+        {{ item.nome }}
       </a>
       {% endfor %}
     </div>
@@ -48,194 +47,381 @@
 {% if mercado_ranking %}
 <div class="panel reveal market-panel">
   <div class="panel-header">
-    <div class="panel-title">Onde comprar mais barato?</div>
+    <div class="panel-title" role="heading" aria-level="2">Onde comprar mais barato?</div>
     <span class="panel-sub">Preço médio unitário por mercado (histórico)</span>
   </div>
   <div class="market-chart-wrap"><canvas id="marketChartGlobal" height="120" aria-label="Ranking de mercados"></canvas></div>
 </div>
 {% endif %}
 
-{% if termo %}
-<div class="reveal">
-  <div id="comparison-panel" class="panel compare-panel compare-panel-desktop" role="region" aria-label="Comparador de preços">
-    <div class="panel-header compare-panel-header">
-      <div class="panel-title" style="color:var(--brand);font-size:var(--text-sm)">
-        Comparador
-        <span id="compare-count" class="compare-badge">0 selecionados</span>
+<div id="product-detail">
+{% if produto_dados %}
+  {% set p = produto_dados.produto %}
+  {% set stats = produto_dados.estatisticas %}
+  <div class="prod-detail reveal">
+    <div class="prod-hero">
+      <div>
+        <div class="prod-hero-cat">{{ chip(p.categoria) }}</div>
+        <h2 class="prod-hero-name">{{ p.nome }}</h2>
+        <p class="prod-hero-meta">{{ p.marca or 'Sem marca' }} · {{ p.unidade }}</p>
       </div>
-      <button type="button" onclick="limparSelecao()" class="btn btn-ghost btn-sm">Limpar</button>
-    </div>
-    <div class="panel-body">
-      <div class="compare-grid" id="compare-details-row">
-        <div class="compare-card cheapest">
-          <div class="kpi-label">Mais barato</div>
-          <div class="compare-price cheapest" id="compare-cheapest-price">R$ 0,00</div>
-          <div id="compare-cheapest-name" style="font-weight:500;margin-top:4px">—</div>
-          <div id="compare-cheapest-store" class="tx-meta">—</div>
-        </div>
-        <div class="compare-card expensive">
-          <div class="kpi-label">Mais caro</div>
-          <div class="compare-price expensive" id="compare-most-expensive-price">R$ 0,00</div>
-          <div id="compare-most-expensive-name" style="font-weight:500;margin-top:4px">—</div>
-          <div id="compare-most-expensive-store" class="tx-meta">—</div>
-        </div>
-      </div>
-      <div class="panel" style="margin-top:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--brand-dim)">
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
-          <div id="compare-diff-explanation" class="tx-meta" style="flex:1;color:var(--text-primary)">
-            Selecione pelo menos 2 itens na tabela para comparar.
+      <div class="prod-hero-stats">
+        <div class="prod-stat-card {% if stats and stats.tendencia == 'caiu' %}stat-down{% elif stats and stats.tendencia == 'subiu' %}stat-up{% endif %}">
+          <div class="kpi-label">Preço médio</div>
+          <div class="kpi-value" style="font-size:var(--text-xl)">{{ stats.preco_medio | dinheiro }}/{{ p.unidade }}</div>
+          {% if stats and stats.variacao_pct %}
+          <div class="kpi-delta {% if stats.tendencia == 'caiu' %}up{% elif stats.tendencia == 'subiu' %}down{% endif %}">
+            {% if stats.tendencia == 'subiu' %}▲{% elif stats.tendencia == 'caiu' %}▼{% endif %} {{ stats.variacao_pct|abs|numero(1) }}%
           </div>
-          <div style="text-align:right">
-            <div class="compare-price" style="color:var(--brand);font-size:var(--text-lg)" id="compare-diff-value">R$ 0,00</div>
-            <div class="kpi-delta up" id="compare-diff-pct">0%</div>
-          </div>
+          {% endif %}
         </div>
       </div>
     </div>
-  </div>
 
-  <div id="comparison-sheet" class="panel compare-sheet compare-panel" role="region" aria-label="Comparador mobile" hidden>
-    <div class="panel-header compare-panel-header">
-      <div class="panel-title" style="font-size:var(--text-sm)">Comparador <span id="compare-count-mobile" class="compare-badge">0</span></div>
-      <button type="button" onclick="limparSelecao()" class="btn btn-ghost btn-sm">Limpar</button>
-    </div>
-    <div class="panel-body" style="padding:var(--space-3)">
-      <p id="compare-sheet-summary" class="tx-meta">Selecione 2+ itens</p>
-    </div>
-  </div>
-
-  {% if mercado_produto %}
-  <div class="panel reveal market-panel">
-    <div class="panel-header">
-      <div class="panel-title">Preço por mercado — {{ termo }}</div>
-      <span class="panel-sub">Último valor registrado em cada loja</span>
-    </div>
-    <div class="market-chart-wrap"><canvas id="marketChartProduct" height="100" aria-label="Preços por mercado"></canvas></div>
-  </div>
-  {% endif %}
-
-  <div class="search-results-header">
-    <div class="results-title">Resultados para <em style="color:var(--brand);font-style:normal">"{{ termo }}"</em></div>
-    <div class="results-count">{{ resultados | length }} registro{% if resultados | length != 1 %}s{% endif %}</div>
-  </div>
-
-  {% if resultados %}
-    <p class="tx-meta pesquisa-hint">
-      Preços por unidade de medida (total ÷ quantidade). Compare apenas itens com a mesma unidade.
-    </p>
-
-    <div class="panel pesquisa-table-wrap">
-      <table class="data-table pesquisa-table">
-        <thead>
-          <tr>
-            <th style="width:44px">Cmp</th>
-            <th>Data</th>
-            <th class="col-hide-mobile">Local</th>
-            <th>Produto</th>
-            <th class="col-hide-mobile">Marca</th>
-            <th class="col-hide-mobile">Categoria</th>
-            <th style="text-align:right" class="col-hide-mobile">Qtd</th>
-            <th style="text-align:center">Un.</th>
-            <th style="text-align:right">R$/un</th>
-            <th style="text-align:right" class="col-hide-mobile">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in resultados %}
-          {% set bounds = minmax_unidades.get(item.unidade) %}
-          {% set is_min = bounds and item.preco_unitario == bounds.min and bounds.count > 1 %}
-          {% set is_max = bounds and item.preco_unitario == bounds.max and bounds.min != bounds.max %}
-          <tr>
-            <td>
-              <input type="checkbox" class="compare-checkbox" aria-label="Comparar {{ item.nome_normalizado }}"
-                     data-nome="{{ item.nome_normalizado }}"
-                     data-marca="{{ item.marca or '' }}"
-                     data-preco="{{ item.preco_unitario }}"
-                     data-unidade="{{ item.unidade }}"
-                     data-qtd="{{ item.quantidade }}"
-                     data-local="{{ item.mercado }}"
-                     data-data="{{ item.nota.data.strftime('%d/%m/%Y') }}">
-            </td>
-            <td class="tx-meta">{{ item.nota.data.strftime('%d/%m/%Y') }}</td>
-            <td class="col-hide-mobile tx-meta" title="{{ item.mercado }}">{{ item.mercado[:28] }}{% if item.mercado | length > 28 %}…{% endif %}</td>
-            <td>
-              {{ item.nome_normalizado }}
-              {% if item.agrupado %}
-                <span class="price-tag" title="{{ item.variantes }} registros no mesmo cupom">{{ item.variantes }}x no cupom</span>
-              {% endif %}
-            </td>
-            <td class="col-hide-mobile tx-meta">{{ item.marca or '—' }}</td>
-            <td class="col-hide-mobile">{{ chip(item.categoria) }}</td>
-            <td class="col-hide-mobile font-roboto" style="text-align:right">{{ item.quantidade | numero }}</td>
-            <td class="tx-meta" style="text-align:center">{{ item.unidade }}</td>
-            <td style="text-align:right;white-space:nowrap">
-              {% if item.agrupado and item.preco_min != item.preco_max %}
-              <span class="price-unit">
-                {{ item.preco_min | dinheiro }} - {{ item.preco_max | dinheiro }}/{{ item.unidade }}
-              </span>
-              {% else %}
-              <span class="price-unit {% if is_max %}is-max{% endif %}">
-                {{ item.preco_unitario | dinheiro }}/{{ item.unidade }}
-              </span>
-              {% if is_min %}
-                <span class="price-tag">menor</span>
-              {% endif %}
-              {% endif %}
-            </td>
-            <td class="col-hide-mobile font-roboto" style="text-align:right">{{ item.valor_total | dinheiro }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    {% if minmax_unidades | length > 0 %}
-    <div class="minmax-row">
-      {% for un, bounds in minmax_unidades.items() %}
-      {% if bounds.count > 1 %}
-      <div class="panel minmax-card minmax-card-unit">
-        <div class="minmax-label">Menor · {{ un }}</div>
-        <div class="minmax-value low">{{ bounds.min | dinheiro }}/{{ un }}</div>
+    <div class="prod-kpi-row">
+      <div class="prod-kpi-mini stat-low">
+        <div class="kpi-label">Menor preço</div>
+        <div class="prod-kpi-mini-val">{{ stats.menor_preco | dinheiro }}/{{ p.unidade }}</div>
       </div>
-      <div class="panel minmax-card minmax-card-unit">
-        <div class="minmax-label">Maior · {{ un }}</div>
-        <div class="minmax-value high">{{ bounds.max | dinheiro }}/{{ un }}</div>
+      <div class="prod-kpi-mini stat-high">
+        <div class="kpi-label">Maior preço</div>
+        <div class="prod-kpi-mini-val">{{ stats.maior_preco | dinheiro }}/{{ p.unidade }}</div>
       </div>
-      {% endif %}
-      {% endfor %}
+      <div class="prod-kpi-mini">
+        <div class="kpi-label">Total compras</div>
+        <div class="prod-kpi-mini-val">{{ stats.total_compras }} vez{% if stats.total_compras != 1 %}es{% endif %}</div>
+      </div>
+    </div>
+
+    {% if produto_dados.compras %}
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title" role="heading" aria-level="2">Evolução do preço</div>
+        <span class="panel-sub">{{ p.unidade }}</span>
+      </div>
+      <div class="chart-wrap"><canvas id="prodPriceChart" height="120" aria-label="Evolução do preço de {{ p.nome }}"></canvas></div>
+    </div>
+
+    {% if produto_dados.por_mercado and produto_dados.por_mercado | length > 1 %}
+    <div class="panel market-panel">
+      <div class="panel-header">
+        <div class="panel-title" role="heading" aria-level="2">Preço por mercado</div>
+        <span class="panel-sub">R$/{{ p.unidade }}</span>
+      </div>
+      <div class="market-chart-wrap"><canvas id="prodMarketChart" height="100" aria-label="Preço por mercado para {{ p.nome }}"></canvas></div>
     </div>
     {% endif %}
-  {% else %}
+
     <div class="panel">
-      {{ empty_state('Nenhum resultado para "' ~ termo ~ '"', 'Tente outro termo ou verifique a grafia. Itens do histórico de cupons aparecem aqui.', 'search') }}
+      <div class="panel-header">
+        <div class="panel-title" role="heading" aria-level="2">Histórico de compras</div>
+        <span class="panel-sub">{{ produto_dados.compras | length }} registro{% if produto_dados.compras | length != 1 %}s{% endif %}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="min-width:800px">
+          <thead>
+            <tr>
+              <th style="width:110px">Data</th>
+              <th style="width:180px">Mercado</th>
+              <th style="text-align:right;width:90px">Qtd</th>
+              <th style="text-align:right;width:110px">R$/un</th>
+              <th style="text-align:right;width:110px">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in produto_dados.compras %}
+            <tr>
+              <td class="tx-meta">{{ c.data }}</td>
+              <td>{{ c.mercado[:30] }}{% if c.mercado | length > 30 %}…{% endif %}</td>
+              <td style="text-align:right">{{ c.quantidade | numero }} {{ c.unidade }}</td>
+              <td style="text-align:right;font-weight:600;color:{% if c.preco_unitario == stats.menor_preco %}var(--success){% elif c.preco_unitario == stats.maior_preco %}var(--danger){% else %}var(--text-primary){% endif %}">
+                {{ c.preco_unitario | dinheiro }}
+              </td>
+              <td style="text-align:right;color:var(--brand);font-weight:600">{{ c.valor_total | dinheiro }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-  {% endif %}
-</div>
+    {% endif %}
+  </div>
 {% else %}
-<div class="panel reveal">
-  {{ empty_state('Busque um produto', 'Digite o nome de um item do histórico (ex.: Leite, Arroz) ou toque em um item frequente acima.', 'search') }}
-</div>
+  <div class="panel reveal" style="margin-top:var(--space-4)">
+    {{ empty_state('Selecione um produto', 'Busque um produto do catálogo acima ou clique em um dos produtos frequentes para ver o histórico de preços.', 'search') }}
+  </div>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+var selectedProdId = {{ (produto_dados.produto.id if produto_dados and produto_dados.produto else 0) | tojson }};
+var selectedProdNome = {{ (produto_dados.produto.nome if produto_dados and produto_dados.produto else '') | tojson }};
+
 (function() {
-  const c = TheoOS.chartColors();
-  const base = TheoOS.defaultChartOptions();
-  const horiz = {
+  var input = document.getElementById('prod-search');
+  var list = document.getElementById('prod-suggestions');
+  var btn = document.getElementById('btn-search-prod');
+  var timer = null;
+  var items = [];
+  var activeIdx = -1;
+
+  function clearList() {
+    list.hidden = true;
+    list.innerHTML = '';
+    items = [];
+    activeIdx = -1;
+  }
+
+  function renderList() {
+    list.innerHTML = '';
+    if (!items.length) { clearList(); return; }
+    items.forEach(function(item, idx) {
+      var li = document.createElement('li');
+      li.className = 'autocomplete-item' + (idx === activeIdx ? ' is-active' : '');
+      li.innerHTML = '<span class="autocomplete-nome">' + item.nome + '</span>'
+        + (item.marca ? '<span class="autocomplete-meta">' + item.marca + ' · ' + item.categoria + '</span>' : '<span class="autocomplete-meta">' + item.categoria + '</span>');
+      li.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        selectProd(item);
+        clearList();
+      });
+      list.appendChild(li);
+    });
+    list.hidden = false;
+  }
+
+  function selectProd(item) {
+    input.value = item.nome;
+    btn.disabled = false;
+    selectedProdId = item.id;
+    selectedProdNome = item.nome;
+    loadProduct(item.id);
+  }
+
+  function doSearch() {
+    var q = input.value.trim();
+    if (q.length < 2) {
+      clearList();
+      btn.disabled = !selectedProdId;
+      return;
+    }
+    fetch('/api/produtos/typeahead?q=' + encodeURIComponent(q))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        items = data || [];
+        activeIdx = -1;
+        renderList();
+      });
+  }
+
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    btn.disabled = true;
+    selectedProdId = null;
+    timer = setTimeout(doSearch, 250);
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (list.hidden || !items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      renderList();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      renderList();
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      selectProd(items[activeIdx]);
+      clearList();
+    }
+  });
+
+  input.addEventListener('blur', function() { setTimeout(clearList, 150); });
+
+  btn.addEventListener('click', function() {
+    if (selectedProdId) loadProduct(selectedProdId);
+  });
+
+  if (input.value) { input.setSelectionRange(0, input.value.length); }
+})();
+
+function loadProduct(prodId) {
+  var container = document.getElementById('product-detail');
+  container.innerHTML = '<div class="panel" style="margin-top:var(--space-4)"><div class="empty-state"><div class="empty-state-graphic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><p class="empty-state-title">Carregando…</p></div></div>';
+
+  fetch('/api/produto/' + prodId + '/historico')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.erro) {
+        container.innerHTML = '<div class="panel"><p style="padding:20px;text-align:center;color:var(--danger)">Produto não encontrado.</p></div>';
+        return;
+      }
+      renderProductDetail(data);
+    })
+    .catch(function() {
+      container.innerHTML = '<div class="panel"><p style="padding:20px;text-align:center;color:var(--danger)">Erro ao carregar histórico.</p></div>';
+    });
+}
+
+function renderProductDetail(data) {
+  var p = data.produto;
+  var stats = data.estatisticas || {};
+  var compras = data.compras || [];
+  var mercados = data.por_mercado || [];
+
+  var fmt = function(n) { return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+
+  var tendencia = stats.tendencia || 'estavel';
+  var deltaHtml = '';
+  if (stats.variacao_pct) {
+    var arrow = tendencia === 'subiu' ? '▲' : (tendencia === 'caiu' ? '▼' : '');
+    var cls = tendencia === 'caiu' ? 'up' : (tendencia === 'subiu' ? 'down' : '');
+    deltaHtml = '<div class="kpi-delta ' + cls + '">' + arrow + ' ' + Math.abs(stats.variacao_pct).toFixed(1).replace('.', ',') + '%</div>';
+  }
+
+  var html = '<div class="prod-detail reveal">'
+    + '<div class="prod-hero">'
+    + '<div>'
+    + '<div class="prod-hero-cat"><span class="chip">' + (p.categoria || 'Outros') + '</span></div>'
+    + '<h2 class="prod-hero-name">' + p.nome + '</h2>'
+    + '<p class="prod-hero-meta">' + (p.marca || 'Sem marca') + ' · ' + (p.unidade || 'un') + '</p>'
+    + '</div>'
+    + '<div class="prod-hero-stats">'
+    + '<div class="prod-stat-card ' + (tendencia === 'caiu' ? 'stat-down' : (tendencia === 'subiu' ? 'stat-up' : '')) + '">'
+    + '<div class="kpi-label">Preço médio</div>'
+    + '<div class="kpi-value" style="font-size:var(--text-xl)">R$ ' + fmt(stats.preco_medio || 0) + '/' + (p.unidade || 'un') + '</div>'
+    + deltaHtml
+    + '</div></div></div>';
+
+  html += '<div class="prod-kpi-row">'
+    + '<div class="prod-kpi-mini stat-low"><div class="kpi-label">Menor preço</div><div class="prod-kpi-mini-val">R$ ' + fmt(stats.menor_preco || 0) + '/' + (p.unidade || 'un') + '</div></div>'
+    + '<div class="prod-kpi-mini stat-high"><div class="kpi-label">Maior preço</div><div class="prod-kpi-mini-val">R$ ' + fmt(stats.maior_preco || 0) + '/' + (p.unidade || 'un') + '</div></div>'
+    + '<div class="prod-kpi-mini"><div class="kpi-label">Total compras</div><div class="prod-kpi-mini-val">' + (stats.total_compras || 0) + ' vez' + ((stats.total_compras || 0) !== 1 ? 'es' : '') + '</div></div>'
+    + '</div>';
+
+  if (compras.length > 0) {
+    html += '<div class="panel"><div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Evolução do preço</div><span class="panel-sub">' + (p.unidade || 'un') + '</span></div><div class="chart-wrap"><canvas id="prodPriceChart" height="120"></canvas></div></div>';
+
+    if (mercados.length > 1) {
+      html += '<div class="panel market-panel"><div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Preço por mercado</div><span class="panel-sub">R$/' + (p.unidade || 'un') + '</span></div><div class="market-chart-wrap"><canvas id="prodMarketChart" height="100"></canvas></div></div>';
+    }
+
+    html += '<div class="panel">'
+      + '<div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Histórico de compras</div><span class="panel-sub">' + compras.length + ' registro' + (compras.length !== 1 ? 's' : '') + '</span></div>'
+      + '<div style="overflow-x:auto"><table class="data-table" style="min-width:800px"><thead><tr><th style="width:110px">Data</th><th style="width:180px">Mercado</th><th style="text-align:right;width:90px">Qtd</th><th style="text-align:right;width:110px">R$/un</th><th style="text-align:right;width:110px">Total</th></tr></thead><tbody>';
+
+    var menor = stats.menor_preco || 0;
+    var maior = stats.maior_preco || 0;
+    compras.forEach(function(c) {
+      var color = 'var(--text-primary)';
+      if (c.preco_unitario === menor) color = 'var(--success)';
+      else if (c.preco_unitario === maior && menor !== maior) color = 'var(--danger)';
+      html += '<tr><td class="tx-meta">' + c.data + '</td>'
+        + '<td>' + c.mercado.substring(0, 30) + (c.mercado.length > 30 ? '…' : '') + '</td>'
+        + '<td style="text-align:right">' + c.quantidade.toFixed(1).replace('.', ',') + ' ' + c.unidade + '</td>'
+        + '<td style="text-align:right;font-weight:600;color:' + color + '">R$ ' + fmt(c.preco_unitario) + '</td>'
+        + '<td style="text-align:right;color:var(--brand);font-weight:600">R$ ' + fmt(c.valor_total) + '</td></tr>';
+    });
+
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '</div>';
+  document.getElementById('product-detail').innerHTML = html;
+
+  if (compras.length > 0) drawCharts(compras, mercados, p.unidade || 'un');
+}
+
+function drawCharts(compras, mercados, unidade) {
+  var c = TheoOS.chartColors();
+  var base = TheoOS.defaultChartOptions();
+  var reversed = compras.slice().reverse();
+  var labels = reversed.map(function(x) { return x.data.substring(0,5); });
+  var values = reversed.map(function(x) { return x.preco_unitario; });
+
+  var ctx = document.getElementById('prodPriceChart');
+  if (ctx && labels.length) {
+    new Chart(ctx.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          borderColor: c.brand,
+          backgroundColor: 'rgba(45,212,191,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointBackgroundColor: c.brand
+        }]
+      },
+      options: Object.assign({}, base, {
+        interaction: { mode: 'index', intersect: false },
+        plugins: Object.assign({}, base.plugins, {
+          legend: { display: false },
+          tooltip: Object.assign({}, base.plugins.tooltip, {
+            callbacks: { label: function(ctx) { return ' R$ ' + ctx.parsed.y.toFixed(2).replace('.', ',') + '/' + unidade; } }
+          })
+        }),
+        scales: Object.assign({}, base.scales, {
+          y: Object.assign({}, base.scales.y, {
+            ticks: Object.assign({}, base.scales.y.ticks, { callback: function(v) { return 'R$ ' + v; } })
+          })
+        })
+      })
+    });
+  }
+
+  var mctx = document.getElementById('prodMarketChart');
+  if (mctx && mercados.length > 1) {
+    new Chart(mctx.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: mercados.map(function(x) { return x.loja; }),
+        datasets: [{
+          data: mercados.map(function(x) { return x.preco_medio; }),
+          backgroundColor: mercados.map(function(_, i) { return c.palette[i % c.palette.length]; }),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: Object.assign({}, base.plugins, { legend: { display: false } }),
+        scales: {
+          x: Object.assign({}, base.scales.x, {
+            ticks: Object.assign({}, base.scales.x.ticks, { callback: function(v) { return 'R$ ' + v; } })
+          }),
+          y: Object.assign({}, base.scales.y, { grid: { display: false } })
+        }
+      }
+    });
+  }
+}
+
+(function() {
+  var c = TheoOS.chartColors();
+  var base = TheoOS.defaultChartOptions();
+  var horiz = {
     indexAxis: 'y',
-    ...base,
-    plugins: { ...base.plugins, legend: { display: false } },
+    responsive: true,
+    plugins: Object.assign({}, base.plugins, { legend: { display: false } }),
     scales: {
-      x: { ...base.scales.x, ticks: { ...base.scales.x.ticks, callback: v => `R$ ${v}` } },
-      y: { ...base.scales.y, grid: { display: false } }
+      x: Object.assign({}, base.scales.x, {
+        ticks: Object.assign({}, base.scales.x.ticks, { callback: function(v) { return 'R$ ' + v; } })
+      }),
+      y: Object.assign({}, base.scales.y, { grid: { display: false } })
     }
   };
   {% if mercado_ranking %}
-  const gLabels = {{ mercado_ranking | map(attribute='loja') | list | tojson }};
-  const gData = {{ mercado_ranking | map(attribute='media') | list | tojson }};
-  const elG = document.getElementById('marketChartGlobal');
+  var gLabels = {{ mercado_ranking | map(attribute='loja') | list | tojson }};
+  var gData = {{ mercado_ranking | map(attribute='media') | list | tojson }};
+  var elG = document.getElementById('marketChartGlobal');
   if (elG && gLabels.length) {
     new Chart(elG.getContext('2d'), {
       type: 'bar',
@@ -247,104 +433,6 @@
     });
   }
   {% endif %}
-  {% if mercado_produto %}
-  const pItems = {{ mercado_produto | tojson }};
-  const pLabels = pItems.map(x => `${x.loja} (${x.unidade})`);
-  const pData = pItems.map(x => x.preco);
-  const elP = document.getElementById('marketChartProduct');
-  if (elP && pLabels.length) {
-    new Chart(elP.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: pLabels,
-        datasets: [{ data: pData, backgroundColor: 'rgba(45,212,191,0.55)', borderColor: c.credit, borderWidth: 1, borderRadius: 4 }]
-      },
-      options: horiz
-    });
-  }
-  {% endif %}
 })();
-
-function fmtBR(n) { return `R$ ${n.toFixed(2).replace('.', ',')}`; }
-
-function atualizarComparacao() {
-  const checkboxes = document.querySelectorAll('.compare-checkbox:checked');
-  const panel = document.getElementById('comparison-panel');
-  const sheet = document.getElementById('comparison-sheet');
-  const count = checkboxes.length;
-
-  document.getElementById('compare-count').textContent = `${count} selecionados`;
-  const mobileCount = document.getElementById('compare-count-mobile');
-  if (mobileCount) mobileCount.textContent = `${count}`;
-
-  if (count < 2) {
-    panel?.classList.remove('is-visible');
-    if (sheet) { sheet.hidden = true; }
-    return;
-  }
-
-  panel?.classList.add('is-visible');
-  if (sheet) {
-    sheet.hidden = false;
-    sheet.classList.add('is-visible');
-  }
-
-  const unidades = [...new Set([...checkboxes].map(cb => cb.dataset.unidade))];
-  const expl = document.getElementById('compare-diff-explanation');
-  if (unidades.length > 1) {
-    expl.textContent = 'Selecione itens com a mesma unidade (kg, un, etc.) para comparar corretamente.';
-    return;
-  }
-
-  let cheapest = null, mostExpensive = null;
-  const un = unidades[0] || '';
-  checkboxes.forEach(cb => {
-    const preco = parseFloat(cb.dataset.preco);
-    const item = {
-      preco,
-      unidade: cb.dataset.unidade,
-      qtd: cb.dataset.qtd,
-      nomeCompleto: cb.dataset.marca ? `${cb.dataset.nome} (${cb.dataset.marca})` : cb.dataset.nome,
-      local: cb.dataset.local,
-      data: cb.dataset.data
-    };
-    if (!cheapest || preco < cheapest.preco) cheapest = item;
-    if (!mostExpensive || preco > mostExpensive.preco) mostExpensive = item;
-  });
-
-  if (!cheapest || !mostExpensive) return;
-
-  const fmtUn = p => `${fmtBR(p)}/${un}`;
-  document.getElementById('compare-cheapest-price').textContent = fmtUn(cheapest.preco);
-  document.getElementById('compare-cheapest-name').textContent = cheapest.nomeCompleto;
-  document.getElementById('compare-cheapest-store').textContent = `${cheapest.local} · ${cheapest.data} · ${cheapest.qtd} ${un}`;
-
-  document.getElementById('compare-most-expensive-price').textContent = fmtUn(mostExpensive.preco);
-  document.getElementById('compare-most-expensive-name').textContent = mostExpensive.nomeCompleto;
-  document.getElementById('compare-most-expensive-store').textContent = `${mostExpensive.local} · ${mostExpensive.data} · ${mostExpensive.qtd} ${un}`;
-
-  const diff = mostExpensive.preco - cheapest.preco;
-  const pct = cheapest.preco > 0 ? (diff / cheapest.preco * 100) : 0;
-  document.getElementById('compare-diff-value').textContent = fmtUn(diff);
-  document.getElementById('compare-diff-pct').textContent = diff > 0.001 ? `+${pct.toFixed(1)}%` : '0%';
-
-  if (diff > 0.001) {
-    expl.innerHTML = `Diferença de <strong>${fmtUn(diff)}</strong> (${pct.toFixed(1)}%) na mesma unidade (<strong>${un}</strong>).`;
-  } else {
-    expl.textContent = `Mesmo preço por ${un} nos itens selecionados.`;
-  }
-
-  const summary = document.getElementById('compare-sheet-summary');
-  if (summary) summary.innerHTML = expl.innerHTML;
-}
-
-function limparSelecao() {
-  document.querySelectorAll('.compare-checkbox').forEach(cb => cb.checked = false);
-  atualizarComparacao();
-}
-
-document.querySelectorAll('.compare-checkbox').forEach(cb => {
-  cb.addEventListener('change', atualizarComparacao);
-});
 </script>
 {% endblock %}

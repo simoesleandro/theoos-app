@@ -1,14 +1,13 @@
 """Blueprint do dashboard, pesquisa de preços e favicon."""
 from __future__ import annotations
 
-import calendar
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, current_app, make_response, render_template, request
+from flask import Blueprint, current_app, jsonify, make_response, render_template, request
 from sqlalchemy import desc, func
 
-from models import Conta, ContaReceber, Financas, ItemGasto, ListaCompras, Orcamento, db
+from models import Conta, ContaReceber, Financas, ItemGasto, ListaCompras, Orcamento, Produto, db
 from theoos import insights
 
 bp = Blueprint("dashboard", __name__)
@@ -184,51 +183,34 @@ def index():
 
 @bp.route("/pesquisa")
 def pesquisa():
-    termo = request.args.get("q", "").strip()
+    produto_id = request.args.get("produto_id")
+    produto_dados = None
 
-    resultados = (
-        insights.pesquisa_resultados(db, ItemGasto, Financas, termo) if termo else []
-    )
-    minmax_unidades = insights.minmax_por_unidade(resultados) if resultados else {}
+    if produto_id:
+        try:
+            produto_dados = insights.produto_price_history(db, ItemGasto, Financas, Produto, int(produto_id))
+        except (ValueError, TypeError):
+            pass
 
-    itens_populares: list[str] = []
+    itens_populares = []
     try:
-        popular_items_query = (
-            db.session.query(
-                func.coalesce(ItemGasto.nome_normalizado, ItemGasto.nome).label("nome_item"),
-                func.sum(ItemGasto.valor_total).label("total_gasto"),
-            )
-            .group_by(func.coalesce(ItemGasto.nome_normalizado, ItemGasto.nome))
-            .order_by(desc("total_gasto"))
-            .limit(12)
-            .all()
-        )
-        itens_populares = [
-            item.nome_item for item in popular_items_query if item.nome_item and len(item.nome_item) <= 25
-        ]
+        catalog_prods = Produto.query.order_by(Produto.nome).limit(12).all()
+        for p in catalog_prods:
+            itens_populares.append({"id": p.id, "nome": p.nome})
     except Exception:
-        pass
-
-    for default_item in ("Leite", "Arroz", "Feijão", "Pão de Forma", "Frango", "Detergente", "Café", "Açúcar"):
-        if len(itens_populares) >= 8:
-            break
-        if not any(default_item.lower() == item.lower() for item in itens_populares):
-            itens_populares.append(default_item)
+        for default_item in ("Leite", "Arroz", "Feijão", "Pão de Forma", "Frango", "Detergente", "Café", "Açúcar"):
+            if len(itens_populares) >= 8:
+                break
+            itens_populares.append({"id": 0, "nome": default_item})
 
     mercado_ranking = (
-        insights.market_ranking_global(db, ItemGasto, Financas) if not termo else []
-    )
-    mercado_produto = (
-        insights.market_prices_for_term(db, ItemGasto, Financas, termo) if termo else []
+        insights.market_ranking_global(db, ItemGasto, Financas) if not produto_id else []
     )
     return render_template(
         "pesquisa.html",
-        termo=termo,
-        resultados=resultados,
-        minmax_unidades=minmax_unidades,
         itens_populares=itens_populares,
         mercado_ranking=mercado_ranking,
-        mercado_produto=mercado_produto,
+        produto_dados=produto_dados,
     )
 
 
@@ -247,4 +229,40 @@ def api_dashboard_week():
     return current_app.jinja_env.get_template("dashboard/_week.html").render(
         semana=semana, hoje=hoje
     )
+
+
+@bp.route("/api/produtos/typeahead")
+def api_produtos_typeahead():
+    """Autocomplete de produtos do catálogo para o Detetive de Preços."""
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    from theoos.produtos import normalize_key
+    t = normalize_key(q)
+    prods = Produto.query.filter(
+        db.or_(
+            Produto.nome.ilike(f"%{q}%"),
+            Produto.aliases.ilike(f"%{q}%"),
+        )
+    ).limit(10).all()
+    results = []
+    for p in prods:
+        results.append({
+            "id": p.id,
+            "nome": p.nome,
+            "marca": p.marca or "",
+            "categoria": p.categoria or "",
+            "unidade": p.unidade or "un",
+        })
+    return jsonify(results)
+
+
+@bp.route("/api/produto/<int:produto_id>/historico")
+def api_produto_historico(produto_id):
+    """Histórico de preços de um produto do catálogo (JSON)."""
+    from theoos import insights
+    dados = insights.produto_price_history(db, ItemGasto, Financas, Produto, produto_id)
+    if not dados:
+        return jsonify({"erro": "Produto não encontrado"}), 404
+    return jsonify(dados)
 

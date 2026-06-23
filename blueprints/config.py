@@ -21,7 +21,7 @@ from flask import (
     url_for,
 )
 
-from models import Financas, ItemGasto, db
+from models import Financas, ItemGasto, Produto, db
 from theoos import audit, backup, reconcile, recurring
 from theoos.db_migrate import get_setting, set_setting
 from theoos.auth import admin_required
@@ -281,3 +281,15 @@ def config_usuarios():
 
     usuarios = Usuario.query.order_by(Usuario.username).all()
     return render_template("config_usuarios.html", usuarios=usuarios)
+
+
+@bp.route("/config/reprocessar-catalogo", methods=["POST"])
+def reprocessar_catalogo():
+    """Re-processa itens sem vínculo contra o catálogo de produtos."""
+    try:
+        from theoos.produtos import reprocess_items_against_catalog
+        resultado = reprocess_items_against_catalog(db, Produto, ItemGasto)
+        flash(resultado.get("mensagem", "Processo concluído."), "success" if resultado.get("erros", 0) == 0 else "warning")
+    except Exception as e:
+        flash(f"Erro ao reprocessar catálogo: {e}", "danger")
+    return redirect(url_for("categorias.categorias"))

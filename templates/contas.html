@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui.html' import flash_messages, chip %}
+{% from 'macros/ui.html' import flash_messages, chip, breadcrumb %}
 {% from 'macros/bills.html' import bill_row_pagar %}
 {% block title %}Contas a Pagar{% endblock %}
 
@@ -8,6 +8,7 @@
 
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/contas', 'label': 'Contas a Pagar'}]) }}
     <h1 class="page-heading">Contas a <em>Pagar</em></h1>
     <p class="page-sub">{{ paginacao_contas.total }} boleto{% if paginacao_contas.total != 1 %}s{% endif %} pendente{% if paginacao_contas.total != 1 %}s{% endif %}</p>
   </div>
@@ -19,7 +20,7 @@
 
 <div class="panel reveal" id="nova-conta">
   <div class="panel-header">
-    <div class="panel-title">Cadastrar conta</div>
+    <div class="panel-title" role="heading" aria-level="2">Cadastrar conta</div>
   </div>
   <div class="panel-body">
       {% if is_admin %}<form action="/contas" method="POST" enctype="multipart/form-data">{% endif %}
@@ -82,7 +83,7 @@
 
 <div class="panel reveal" style="margin-top:var(--space-4)">
   <div class="panel-header">
-    <div class="panel-title">Próximos vencimentos</div>
+    <div class="panel-title" role="heading" aria-level="2">Próximos vencimentos</div>
   </div>
 
   <form id="search-form" method="GET" action="/contas">

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui.html' import flash_messages, chip, empty_state %}
+{% from 'macros/ui.html' import flash_messages, chip, empty_state, breadcrumb %}
 {% block title %}Relatórios{% endblock %}
 
 {% block styles %}{% endblock %}
@@ -9,6 +9,7 @@
 
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/relatorios', 'label': 'Relatórios'}]) }}
     <h1 class="page-heading"><em>Relatório</em> de Gastos</h1>
     <p class="page-sub">Histórico completo de transações</p>
   </div>
@@ -73,14 +74,14 @@
 <!-- Charts -->
 <div class="charts-row reveal">
   <div class="panel">
-    <div class="panel-header"><div class="panel-title">Evolução de Gastos</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Evolução de Gastos</div></div>
     <div class="chart-legend">
       <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div> R$ por dia</div>
     </div>
     <div class="chart-wrap"><canvas id="lineChart" height="100"></canvas></div>
   </div>
   <div class="panel">
-    <div class="panel-header"><div class="panel-title">Por Categoria</div></div>
+    <div class="panel-header"><div class="panel-title" role="heading" aria-level="2">Por Categoria</div></div>
     <div class="donut-wrap">
       <canvas id="donutChart" height="180" style="max-width:180px;width:100%"></canvas>
       <div class="donut-legend" id="donut-legend"></div>
@@ -91,7 +92,7 @@
 <!-- Price Variation Panel -->
 <div class="panel reveal" style="margin-top: 18px;">
   <div class="panel-header">
-    <div class="panel-title">Detetive de Variação de Preços</div>
+    <div class="panel-title" role="heading" aria-level="2">Detetive de Variação de Preços</div>
   </div>
   <div style="padding: 20px;">
     {% if variacoes %}
@@ -141,7 +142,7 @@
 <!-- Period Planning Panel -->
 <div class="panel reveal" style="margin-top: 18px;">
   <div class="panel-header">
-    <div class="panel-title">📊 Planejamento por Período</div>
+    <div class="panel-title" role="heading" aria-level="2">📊 Planejamento por Período</div>
     <span style="font-size: 12px; color: var(--muted);">Correlacione contas a pagar e receber em um intervalo</span>
   </div>
   <div style="padding: 20px;">
@@ -302,7 +303,7 @@
 <!-- Inter-Monthly Comparison Panel -->
 <div class="panel reveal" style="margin-top: 18px; border-color: var(--border);">
   <div class="panel-header">
-    <div class="panel-title">⚖️ Quadro Comparativo Intermensal</div>
+    <div class="panel-title" role="heading" aria-level="2">⚖️ Quadro Comparativo Intermensal</div>
     <span style="font-size: 12px; color: var(--muted);">Compare os gastos reais de um período com o mês anterior e posterior</span>
   </div>
   <div style="padding: 20px;">
@@ -439,7 +440,7 @@
 <!-- Transactions List -->
 <div class="panel reveal">
   <div class="panel-header">
-    <div class="panel-title">Transações — Página {{ paginacao.page }} de {{ paginacao.pages }}</div>
+    <div class="panel-title" role="heading" aria-level="2">Transações — Página {{ paginacao.page }} de {{ paginacao.pages }}</div>
   </div>
 
   {% if notas %}
@@ -551,9 +552,8 @@ function setPeriodo(days) {
   const inicio = new Date();
   const fim = new Date();
   fim.setDate(fim.getDate() + days);
-  const fmt = d => d.toISOString().split('T')[0];
-  document.getElementById('periodo-inicio').value = fmt(inicio);
-  document.getElementById('periodo-fim').value = fmt(fim);
+  document.getElementById('periodo-inicio').value = TheoOS.fmtDateISO(inicio);
+  document.getElementById('periodo-fim').value = TheoOS.fmtDateISO(fim);
   document.getElementById('period-form').submit();
 }
 
@@ -565,9 +565,8 @@ function setCompPeriodo(days) {
   } else {
     inicio.setDate(inicio.getDate() - days + 1);
   }
-  const fmt = d => d.toISOString().split('T')[0];
-  document.getElementById('comp-inicio').value = fmt(inicio);
-  document.getElementById('comp-fim').value = fmt(fim);
+  document.getElementById('comp-inicio').value = TheoOS.fmtDateISO(inicio);
+  document.getElementById('comp-fim').value = TheoOS.fmtDateISO(fim);
   document.getElementById('comparison-form').submit();
 }
 
@@ -604,11 +603,32 @@ function setCompPeriodo(days) {
   });
   const total = values.reduce((a, b) => a + b, 0);
   const leg = document.getElementById('donut-legend');
+  const frag = document.createDocumentFragment();
   labels.forEach((l, i) => {
     const pct = total > 0 ? values[i] / total * 100 : 0;
     const col = colors[i];
-    leg.innerHTML += `<div class="donut-legend-item"><span class="donut-legend-label" style="color:${col}">${l}</span><div class="donut-bar-wrap"><div class="donut-bar" style="width:${pct}%;background:${col}"></div></div><span class="donut-val">R$ ${Math.round(values[i]).toLocaleString('pt-BR')}</span></div>`;
+    const div = document.createElement('div');
+    div.className = 'donut-legend-item';
+    const label = document.createElement('span');
+    label.className = 'donut-legend-label';
+    label.style.color = col;
+    label.textContent = l;
+    const barWrap = document.createElement('div');
+    barWrap.className = 'donut-bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'donut-bar';
+    bar.style.width = pct + '%';
+    bar.style.background = col;
+    barWrap.appendChild(bar);
+    const val = document.createElement('span');
+    val.className = 'donut-val';
+    val.textContent = 'R$ ' + Math.round(values[i]).toLocaleString('pt-BR');
+    div.appendChild(label);
+    div.appendChild(barWrap);
+    div.appendChild(val);
+    frag.appendChild(div);
   });
+  leg.appendChild(frag);
 })();
 
 function verMaisContas() {

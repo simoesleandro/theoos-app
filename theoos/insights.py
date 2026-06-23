@@ -1,9 +1,34 @@
 """Detetive de preços 2.0 — cesta, alertas, hábitos."""
+import re
 from calendar import monthrange
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, or_
+
+_TOKEN_RE = re.compile(r'\w+', re.UNICODE)
+
+
+def _tokenize(texto):
+    """Extrai tokens (palavras) de um texto, removendo acentos para busca."""
+    if not texto:
+        return []
+    from unicodedata import normalize as _norm
+    normalized = _norm('NFKD', texto.lower()).encode('ascii', 'ignore').decode('ascii')
+    return [t for t in _TOKEN_RE.findall(normalized) if len(t) >= 2]
+
+
+def _token_match_score(tokens, nome, nome_normalizado, marca):
+    """Quantos tokens casam nos campos de busca. Retorna 0 se nenhum."""
+    score = 0
+    nome_l = (nome or '').lower()
+    norm_l = (nome_normalizado or '').lower()
+    marca_l = (marca or '').lower()
+    texto_unificado = f"{nome_l} {norm_l} {marca_l}"
+    for tok in tokens:
+        if tok in texto_unificado:
+            score += 1
+    return score
 
 
 def _mercado_from_nota(descricao):
@@ -66,12 +91,23 @@ def basket_estimates_by_store(db, ListaCompras, ItemGasto, Financas):
 
 
 def _norm_unidade(unidade):
+    """Normaliza unidade de medida — padroniza variações comuns."""
     u = (unidade or "un").strip().lower()
-    if u in ("l",):
-        return "l"
-    if u in ("cx", "caixa"):
-        return "cx"
-    return u
+    mapping = {
+        "l": "l", "lt": "l", "litro": "l", "litros": "l",
+        "ml": "ml", "mililitro": "ml", "mililitros": "ml",
+        "kg": "kg", "kilo": "kg", "quilo": "kg", "kilograma": "kg",
+        "g": "g", "gr": "g", "grama": "g", "gramas": "g",
+        "un": "un", "und": "un", "unid": "un", "unidade": "un", "unidades": "un",
+        "cx": "cx", "caixa": "cx", "caixas": "cx",
+        "pct": "pct", "pacote": "pct", "pacotes": "pct",
+        "frasco": "un", "frc": "un",
+        "lt": "l",
+        "lata": "un", "latinha": "un",
+        "garrafa": "un", "gf": "un", "garrafinha": "un",
+        "sache": "un", "sch": "un",
+    }
+    return mapping.get(u, u)
 
 
 def _unit_price(item):
@@ -327,11 +363,45 @@ def _pesquisa_dedupe_key(it, preco_u):
     )
 
 
-def pesquisa_resultados(db, ItemGasto, Financas, termo):
-    """Histórico de busca com preço unitário (total ÷ qtd) e deduplicação."""
+def pesquisa_resultados(db, ItemGasto, Financas, termo, Produto=None):
+    """Histórico de busca com preço unitário e ranqueamento por token.
+    
+    Divide o termo em palavras-chave e pontua cada item por quantas
+    palavras casam nos campos (nome, nome_normalizado, marca, aliases).
+    Ordena por relevância (score) decrescente, depois por data.
+    
+    Itens vinculados ao mesmo produto_id no catálogo são agrupados
+    independentemente da grafia OCR original.
+    """
     if not termo or not termo.strip():
         return []
     t = termo.strip()
+    tokens = _tokenize(t)
+    if not tokens:
+        return []
+
+    produto_ids_alias = set()
+    if Produto is not None:
+        try:
+            import json
+            all_prods = Produto.query.all()
+            for p in all_prods:
+                aliases = []
+                if p.aliases:
+                    try:
+                        aliases = json.loads(p.aliases) if isinstance(p.aliases, str) else p.aliases
+                    except (json.JSONDecodeError, TypeError):
+                        aliases = []
+                if _token_match_score(tokens, p.nome, p.nome, '') > 0:
+                    produto_ids_alias.add(p.id)
+                    continue
+                for a in aliases:
+                    if _token_match_score(tokens, a, a, '') > 0:
+                        produto_ids_alias.add(p.id)
+                        break
+        except Exception:
+            pass
+
     itens = (
         ItemGasto.query.join(Financas)
         .filter(
@@ -345,6 +415,19 @@ def pesquisa_resultados(db, ItemGasto, Financas, termo):
         .order_by(Financas.data.desc())
         .all()
     )
+
+    if produto_ids_alias:
+        itens_extra = (
+            ItemGasto.query.join(Financas)
+            .filter(
+                Financas.tipo == "debito",
+                ItemGasto.produto_id.in_(produto_ids_alias),
+                ~ItemGasto.id.in_([i.id for i in itens]),
+            )
+            .all()
+        )
+        itens = itens + itens_extra
+
     seen = set()
     rows = []
     for it in itens:
@@ -355,11 +438,23 @@ def pesquisa_resultados(db, ItemGasto, Financas, termo):
         if key in seen:
             continue
         seen.add(key)
+
+        nome_canonico = it.nome_normalizado or it.nome
+        if getattr(it, "produto_id", None) and it.produto and it.produto.nome:
+            nome_canonico = it.produto.nome
+
+        score = _token_match_score(
+            tokens,
+            it.nome or '',
+            it.nome_normalizado or '',
+            it.marca or '',
+        )
+
         rows.append(
             {
                 "id": it.id,
                 "nome": it.nome,
-                "nome_normalizado": it.nome_normalizado or it.nome,
+                "nome_normalizado": nome_canonico,
                 "marca": it.marca,
                 "categoria": it.categoria,
                 "quantidade": it.quantidade,
@@ -368,20 +463,31 @@ def pesquisa_resultados(db, ItemGasto, Financas, termo):
                 "preco_unitario": preco_u,
                 "nota": it.nota,
                 "mercado": _item_mercado(it),
+                "produto_id": getattr(it, "produto_id", None),
+                "score": score,
             }
         )
+
+    rows.sort(key=lambda r: (-r["score"], r["nota"].data if r.get("nota") and r["nota"].data else datetime.min), reverse=False)
+    rows[:] = rows[:]  # force stable order before collapse
     return _collapse_pesquisa_rows(rows)
 
 
 def _collapse_pesquisa_rows(rows):
-    """Agrupa mesma compra (data+loja+produto+marca+unidade) em uma linha."""
+    """Agrupa mesma compra (data+loja+produto+marca+unidade) em uma linha.
+    
+    Usa produto_id quando disponível como chave primária de identidade do produto,
+    garantindo que itens do mesmo produto canônico agrupem mesmo com nomes OCR distintos.
+    """
     grupos = defaultdict(list)
     for r in rows:
         data = r["nota"].data.date() if r.get("nota") and r["nota"].data else None
+        pid = r.get("produto_id")
+        nome_chave = (r["nome_normalizado"] or "").strip().lower()
         chave = (
             data,
             r["mercado"],
-            (r["nome_normalizado"] or "").strip().lower(),
+            pid if pid else nome_chave,
             (r["marca"] or "").strip().lower(),
             r["unidade"],
         )
@@ -406,8 +512,10 @@ def _collapse_pesquisa_rows(rows):
         out.append(base)
 
     out.sort(
-        key=lambda x: x["nota"].data if x.get("nota") and x["nota"].data else datetime.min,
-        reverse=True,
+        key=lambda x: (
+            -(x.get("score", 0)),
+            -(x["nota"].data.timestamp() if x.get("nota") and x["nota"].data else 0),
+        ),
     )
     return out
 
@@ -427,21 +535,55 @@ def minmax_por_unidade(resultados):
     return out
 
 
-def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
-    """Último preço unitário por mercado e unidade para um produto."""
+def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12, Produto=None):
+    """Último preço unitário por mercado e unidade para um produto.
+    
+    Usa busca por token: divide o termo em palavras e casa nos campos.
+    Quando Produto é fornecido, também busca por aliases do catálogo.
+    """
     if not termo or not termo.strip():
         return []
     t = termo.strip()
+    tokens = _tokenize(t)
+    if not tokens:
+        return []
+
+    produto_ids_alias = set()
+    if Produto is not None:
+        try:
+            import json
+            all_prods = Produto.query.all()
+            for p in all_prods:
+                aliases = []
+                if p.aliases:
+                    try:
+                        aliases = json.loads(p.aliases) if isinstance(p.aliases, str) else p.aliases
+                    except (json.JSONDecodeError, TypeError):
+                        aliases = []
+                if _token_match_score(tokens, p.nome, p.nome, '') > 0:
+                    produto_ids_alias.add(p.id)
+                    continue
+                for a in aliases:
+                    if _token_match_score(tokens, a, a, '') > 0:
+                        produto_ids_alias.add(p.id)
+                        break
+        except Exception:
+            pass
+
+    filters = [
+        Financas.tipo == "debito",
+        or_(
+            ItemGasto.nome.ilike(f"%{t}%"),
+            ItemGasto.nome_normalizado.ilike(f"%{t}%"),
+            ItemGasto.marca.ilike(f"%{t}%"),
+        ),
+    ]
+    if produto_ids_alias:
+        filters[1] = or_(filters[1], ItemGasto.produto_id.in_(produto_ids_alias))
+
     itens = (
         ItemGasto.query.join(Financas)
-        .filter(
-            Financas.tipo == "debito",
-            or_(
-                ItemGasto.nome.ilike(f"%{t}%"),
-                ItemGasto.nome_normalizado.ilike(f"%{t}%"),
-                ItemGasto.marca.ilike(f"%{t}%"),
-            ),
-        )
+        .filter(*filters)
         .order_by(Financas.data.desc())
         .all()
     )
@@ -449,11 +591,14 @@ def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
     for it in itens:
         if (it.quantidade or 0) <= 0:
             continue
+        score = _token_match_score(tokens, it.nome or '', it.nome_normalizado or '', it.marca or '')
         loja = _item_mercado(it)
         un = _norm_unidade(it.unidade)
         chave = (loja, un)
         if chave in by_store_unit:
-            continue
+            existing_score = by_store_unit[chave].get("_score", 0)
+            if score <= existing_score:
+                continue
         by_store_unit[chave] = {
             "loja": loja,
             "unidade": un,
@@ -461,9 +606,10 @@ def market_prices_for_term(db, ItemGasto, Financas, termo, limit=12):
             "produto": it.nome_normalizado or it.nome,
             "quantidade": it.quantidade,
             "data": it.nota.data.strftime("%d/%m/%Y") if it.nota else "",
+            "_score": score,
         }
     rows = list(by_store_unit.values())
-    rows.sort(key=lambda x: x["preco"])
+    rows.sort(key=lambda x: (-x.pop("_score", 0), x["preco"]))
     return rows[:limit]
 
 
@@ -629,4 +775,91 @@ def forecast_next_month(db, Financas, ItemGasto, meses_historico=3, top_n=5):
         "total": round(total, 2),
         "categorias": categorias,
         "metodo": f"media_ponderada_{meses_historico}m",
+    }
+
+
+def produto_price_history(db, ItemGasto, Financas, Produto, produto_id):
+    """Histórico completo de preços de um produto do catálogo.
+    
+    Retorna todas as compras vinculadas ao produto_id, com preço unitário,
+    agrupadas por data+mercado, ordenadas da mais recente para a mais antiga.
+    Inclui estatísticas: menor preço, maior preço, preço médio, tendência.
+    """
+    produto = db.session.get(Produto, produto_id)
+    if not produto:
+        return None
+
+    itens = (
+        ItemGasto.query.join(Financas)
+        .filter(
+            Financas.tipo == "debito",
+            ItemGasto.produto_id == produto_id,
+            ItemGasto.quantidade > 0,
+        )
+        .order_by(Financas.data.desc())
+        .all()
+    )
+
+    if not itens:
+        return {
+            "produto": {"id": produto.id, "nome": produto.nome, "marca": produto.marca, "categoria": produto.categoria, "unidade": produto.unidade},
+            "compras": [],
+            "estatisticas": None,
+            "por_mercado": [],
+        }
+
+    compras = []
+    precos = []
+    for it in itens:
+        pu = _unit_price(it)
+        precos.append(pu)
+        compras.append({
+            "data": it.nota.data.strftime("%d/%m/%Y") if it.nota else "",
+            "data_iso": it.nota.data.isoformat() if it.nota else "",
+            "mercado": _item_mercado(it),
+            "quantidade": float(it.quantidade or 0),
+            "unidade": _norm_unidade(it.unidade),
+            "preco_unitario": round(pu, 2),
+            "valor_total": float(it.valor_total or 0),
+            "marca": it.marca or "",
+        })
+
+    stat = {
+        "menor_preco": round(min(precos), 2) if precos else 0,
+        "maior_preco": round(max(precos), 2) if precos else 0,
+        "preco_medio": round(sum(precos) / len(precos), 2) if precos else 0,
+        "total_compras": len(precos),
+        "tendencia": "estavel",
+    }
+    if len(precos) >= 2:
+        recentes = precos[: min(3, len(precos))]
+        antigas = precos[-min(3, len(precos)) :]
+        media_recente = sum(recentes) / len(recentes)
+        media_antiga = sum(antigas) / len(antigas)
+        if media_antiga > 0:
+            pct = (media_recente - media_antiga) / media_antiga * 100
+            stat["variacao_pct"] = round(pct, 1)
+            stat["tendencia"] = "subiu" if pct > 5 else ("caiu" if pct < -5 else "estavel")
+        else:
+            stat["variacao_pct"] = 0
+
+    lojas = defaultdict(list)
+    for c in compras:
+        lojas[c["mercado"]].append(c["preco_unitario"])
+    por_mercado = []
+    for loja, ps in lojas.items():
+        por_mercado.append({
+            "loja": loja,
+            "preco_medio": round(sum(ps) / len(ps), 2),
+            "menor": min(ps),
+            "maior": max(ps),
+            "compras": len(ps),
+        })
+    por_mercado.sort(key=lambda x: x["preco_medio"])
+
+    return {
+        "produto": {"id": produto.id, "nome": produto.nome, "marca": produto.marca, "categoria": produto.categoria, "unidade": produto.unidade},
+        "compras": compras,
+        "estatisticas": stat,
+        "por_mercado": por_mercado,
     }

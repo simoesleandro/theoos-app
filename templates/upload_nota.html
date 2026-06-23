@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui.html' import flash_messages, chip, empty_state %}
+{% from 'macros/ui.html' import flash_messages, chip, empty_state, breadcrumb %}
 {% block title %}Processar Cupom{% endblock %}
 
 {% block styles %}{% endblock %}
@@ -10,6 +10,7 @@
 
 <div class="page-header reveal">
   <div>
+    {{ breadcrumb([{'url': '/', 'label': 'Dashboard'}, {'url': '/upload_nota', 'label': 'Processar Cupom'}]) }}
     <h1 class="page-heading">Processar <em>Cupom Fiscal</em></h1>
     <p class="page-sub">Envie a foto do cupom — a IA extrai os itens automaticamente</p>
   </div>
@@ -21,7 +22,7 @@
 <!-- Upload Form -->
 <div class="panel reveal upload-panel" id="upload-panel">
   <div class="panel-header">
-    <div class="panel-title">Foto do Cupom</div>
+    <div class="panel-title" role="heading" aria-level="2">Foto do Cupom</div>
   </div>
   <div class="panel-body">
     <div class="upload-skeleton" id="upload-skeleton" aria-live="polite" aria-busy="false">
@@ -64,7 +65,7 @@
 {% if selected_cupom %}
 <div class="panel reveal panel-highlight">
   <div class="panel-header panel-editor-header">
-    <div class="panel-title">Editar cupom: {{ selected_cupom.descricao | replace('IA: ', '') }}</div>
+    <div class="panel-title" role="heading" aria-level="2">Editar cupom: {{ selected_cupom.descricao | replace('IA: ', '') }}</div>
     <div class="panel-toolbar-actions">
       <button type="button" id="btn-salvar-tudo-header" class="btn btn-primary btn-sm" onclick="salvarTudo({{ selected_cupom.id }})">Salvar tudo</button>
       <a href="/upload_nota" class="btn btn-ghost btn-sm">Fechar</a>
@@ -170,7 +171,7 @@
 <!-- Recent processed cupons -->
 <div class="panel reveal" style="margin-top: 20px;">
   <div class="panel-header">
-    <div class="panel-title">Cupons Processados Recentes</div>
+    <div class="panel-title" role="heading" aria-level="2">Cupons Processados Recentes</div>
   </div>
   <div class="panel-body" style="padding: 0;">
     {% if recentes %}

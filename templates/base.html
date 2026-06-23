@@ -29,7 +29,6 @@
 <meta name="apple-mobile-web-app-title" content="ThéoOS">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js" integrity="sha384-ujb1lZYEpJ42dAD6CrpLh+fzS4gx2dWkTi1O4S9ZQXEqgbe6KFlx3eS3tHvbTA" crossorigin="anonymous"></script>
 <script src="{{ url_for('static', filename='js/theoos-notify.js') }}" defer></script>
@@ -58,7 +57,10 @@
 {% block styles %}{% endblock %}
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>
+<a href="#main-content" class="skip-link">Pular para conteúdo</a>
 
+<div id="aria-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+<div class="toast-container" id="toast-container" aria-live="polite"></div>
 <div class="mobile-topbar">
   <div class="mobile-logo">Théo<em>OS</em></div>
   <div style="display:flex;align-items:center;gap:10px">
@@ -169,6 +171,42 @@
 
 <script>
 window.TheoOS = window.TheoOS || {};
+
+TheoOS.fmtDateISO = function(d) { return d.toISOString().slice(0, 10); };
+
+TheoOS.toast = function(msg, opts) {
+  opts = opts || {};
+  var container = document.getElementById('toast-container');
+  if (!container) return;
+  var toast = document.createElement('div');
+  toast.className = 'toast';
+  var span = document.createElement('span');
+  span.textContent = msg;
+  toast.appendChild(span);
+  if (opts.undoLabel && opts.onUndo) {
+    var btn = document.createElement('button');
+    btn.className = 'toast-undo';
+    btn.textContent = opts.undoLabel;
+    btn.addEventListener('click', function() {
+      opts.onUndo();
+      toast.remove();
+    });
+    toast.appendChild(btn);
+  }
+  container.appendChild(toast);
+  var duration = opts.duration || 5000;
+  setTimeout(function() {
+    if (toast.parentNode) toast.remove();
+  }, duration);
+};
+
+TheoOS.announce = function(msg) {
+  var el = document.getElementById('aria-live-region');
+  if (el) {
+    el.textContent = '';
+    setTimeout(function() { el.textContent = msg; }, 50);
+  }
+};
 
 TheoOS.chartColors = function() {
   const s = getComputedStyle(document.documentElement);
