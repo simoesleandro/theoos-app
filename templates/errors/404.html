@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 — ThéoOS</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/theoos.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card panel" style="text-align:center;max-width:480px">
+    <div class="logo-mark" style="margin-bottom:var(--space-4)">Théo<em>OS</em></div>
+    <h1 class="page-heading" style="font-size:4rem;line-height:1;color:var(--brand);margin:0">404</h1>
+    <p class="page-sub" style="margin-bottom:var(--space-3);font-weight:600;color:var(--text-primary)">Página não encontrada</p>
+    <p class="tx-meta" style="margin-bottom:var(--space-5);color:var(--text-secondary)">
+      O endereço <code style="background:var(--surface-3);padding:2px 6px;border-radius:4px">{{ request.path }}</code> não corresponde a nenhuma rota do ThéoOS.
+    </p>
+    <div style="display:flex;gap:var(--space-2);justify-content:center;flex-wrap:wrap">
+      <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">← Voltar ao início</a>
+      <a href="{{ url_for('contas.contas') }}" class="btn btn-outline">Contas</a>
+      <a href="{{ url_for('lista.lista_compras') }}" class="btn btn-outline">Lista</a>
+    </div>
+  </main>
+</body>
+</html>

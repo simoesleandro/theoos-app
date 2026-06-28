@@ -1,0 +1,47 @@
+services:
+  theoos:
+    build: .
+    container_name: theoos-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - theoos-instance:/app/instance
+      - theoos-uploads:/app/static/uploads/boletos
+      - theoos-logs:/app/logs
+    environment:
+      - THEOOS_SERVICE=1
+      - SECRET_KEY=${SECRET_KEY:-changeme-in-prod}
+      - WEB_PIN=${WEB_PIN:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - THEOOS_WEB_URL=${THEOOS_WEB_URL:-http://localhost:5000}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  theoos-bot:
+    build: .
+    container_name: theoos-bot
+    restart: unless-stopped
+    depends_on:
+      - theoos
+    volumes:
+      - theoos-instance:/app/instance
+      - theoos-uploads:/app/static/uploads/boletos
+      - theoos-logs:/app/logs
+    environment:
+      - THEOOS_SERVICE=1
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - THEOOS_WEB_URL=${THEOOS_WEB_URL:-http://localhost:5000}
+    command: ["python", "bot.py"]
+
+volumes:
+  theoos-instance:
+  theoos-uploads:
+  theoos-logs:

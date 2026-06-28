@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>500 — ThéoOS</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/theoos.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card panel" style="text-align:center;max-width:480px">
+    <div class="logo-mark" style="margin-bottom:var(--space-4)">Théo<em>OS</em></div>
+    <h1 class="page-heading" style="font-size:4rem;line-height:1;color:var(--danger);margin:0">500</h1>
+    <p class="page-sub" style="margin-bottom:var(--space-3);font-weight:600;color:var(--text-primary)">Erro interno do servidor</p>
+    <p class="tx-meta" style="margin-bottom:var(--space-5);color:var(--text-secondary)">
+      Algo deu errado ao processar sua requisição. Os detalhes técnicos foram registrados no log.
+    </p>
+    <div style="display:flex;gap:var(--space-2);justify-content:center;flex-wrap:wrap">
+      <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">← Voltar ao início</a>
+      <button onclick="location.reload()" class="btn btn-outline">Tentar novamente</button>
+    </div>
+  </main>
+</body>
+</html>
