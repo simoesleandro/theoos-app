@@ -649,27 +649,36 @@ def monthly_spending_by_category(db, Financas, ItemGasto, meses=6, top_n=5):
         .limit(top_n)
         .all()
     )
+    top_cats_list = [r[0] for r in top_cats]
+
+    serie_lookup: dict[tuple[str, str], float] = {}
+    if top_cats_list:
+        rows = (
+            db.session.query(
+                ItemGasto.categoria,
+                func.strftime("%Y-%m", Financas.data).label("mes"),
+                func.coalesce(func.sum(ItemGasto.valor_total), 0.0).label("total"),
+            )
+            .join(Financas)
+            .filter(
+                Financas.tipo == "debito",
+                Financas.data >= primeiro,
+                Financas.data <= ultimo,
+                ItemGasto.categoria.in_(top_cats_list),
+            )
+            .group_by(ItemGasto.categoria, func.strftime("%Y-%m", Financas.data))
+            .all()
+        )
+        for cat, mes_str, total in rows:
+            serie_lookup[(cat, mes_str)] = float(total)
 
     resultados: list[dict] = []
-    for cat, _ in top_cats:
+    for cat in top_cats_list:
         serie: list[dict] = []
         for mes in meses_lista:
-            last_day = monthrange(mes.year, mes.month)[1]
-            dt_ini = datetime(mes.year, mes.month, 1)
-            dt_fim = datetime(mes.year, mes.month, last_day, 23, 59, 59)
-            val = (
-                db.session.query(func.coalesce(func.sum(ItemGasto.valor_total), 0.0))
-                .join(Financas)
-                .filter(
-                    Financas.tipo == "debito",
-                    Financas.data >= dt_ini,
-                    Financas.data <= dt_fim,
-                    ItemGasto.categoria == cat,
-                )
-                .scalar()
-                or 0.0
-            )
-            serie.append({"mes": mes.strftime("%Y-%m"), "valor": float(val)})
+            mes_str = mes.strftime("%Y-%m")
+            val = serie_lookup.get((cat, mes_str), 0.0)
+            serie.append({"mes": mes_str, "valor": val})
         if len(serie) >= 2 and serie[-1]["valor"] > 0:
             ant = serie[-2]["valor"]
             atual = serie[-1]["valor"]

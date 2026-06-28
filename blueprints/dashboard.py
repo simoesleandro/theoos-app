@@ -133,11 +133,19 @@ def index():
     valores_debitos = [debitos_agrupados[d] for d in datas_grafico]
     valores_creditos = [creditos_agrupados[d] for d in datas_grafico]
 
-    gastos_por_cat: dict[str, float] = defaultdict(float)
-    for item in ItemGasto.query.join(Financas).filter(
-        Financas.data >= primeiro_dia_dt, Financas.tipo == "debito"
-    ).all():
-        gastos_por_cat[item.categoria or "Outros"] += item.valor_total
+    rows_cat = (
+        db.session.query(
+            func.coalesce(ItemGasto.categoria, "Outros").label("categoria"),
+            func.coalesce(func.sum(ItemGasto.valor_total), 0.0).label("total"),
+        )
+        .join(Financas)
+        .filter(Financas.data >= primeiro_dia_dt, Financas.tipo == "debito")
+        .group_by(ItemGasto.categoria)
+        .all()
+    )
+    gastos_por_cat: dict[str, float] = {
+        (r.categoria or "Outros"): float(r.total) for r in rows_cat
+    }
 
     semana = insights.week_agenda(db, Conta, ContaReceber, hoje, days=7)
     orcamento_status = insights.budget_status(db, Orcamento, ItemGasto, Financas)
