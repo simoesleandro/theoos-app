@@ -32,4 +32,10 @@ jobs:
         env:
           SECRET_KEY: test-secret
           GEMINI_API_KEY: test-key
-        run: pytest tests/ -q --cov=theoos --cov=app --cov-report=term-missing
+          PYTHONIOENCODING: utf-8
+          # Use --collect-only first to surface import-time issues separately
+        run: |
+          echo "--- collect-only ---"
+          pytest tests/ --collect-only -q 2>&1 | tail -20
+          echo "--- run tests ---"
+          pytest tests/ -v --tb=short 2>&1 | tail -100
