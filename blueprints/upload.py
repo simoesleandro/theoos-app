@@ -101,7 +101,7 @@ def upload_nota():
     pendentes = ListaCompras.query.filter_by(status="pendente").all()
     lista_str = ", ".join(f"[ID:{p.id} {p.item}]" for p in pendentes) or "Lista vazia."
 
-    catalog = produtos_svc.build_catalog(db, ItemGasto, db) if False else produtos_svc.build_catalog(db, ItemGasto, None)
+    catalog = produtos_svc.build_catalog(db, ItemGasto, None)
     catalog_block = produtos_svc.catalog_prompt_block(catalog)
 
     try:

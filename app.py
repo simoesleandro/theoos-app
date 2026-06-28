@@ -34,10 +34,6 @@ load_dotenv()
 configure_logging()
 log = get_logger(__name__)
 
-load_dotenv()
-configure_logging()
-log = get_logger(__name__)
-
 app = Flask(__name__)
 
 _secret_key = os.getenv('SECRET_KEY', '').strip()
@@ -63,6 +59,35 @@ csrf.init_app(app)
 limiter.init_app(app)
 
 
+@app.errorhandler(404)
+def handle_404(e):
+    """Página não encontrada — mostra template amigável em vez de texto cru."""
+    if request.path.startswith("/api/") or request.is_json:
+        return jsonify({"sucesso": False, "erro": "Recurso não encontrado."}), 404
+    return render_template("errors/404.html"), 404
+
+
+@app.errorhandler(403)
+def handle_403(e):
+    """Acesso negado (ex.: @admin_required em usuário viewer)."""
+    if request.path.startswith("/api/") or request.is_json:
+        return jsonify({"sucesso": False, "erro": "Acesso negado."}), 403
+    flash("Você não tem permissão para acessar essa página.", "danger")
+    try:
+        return redirect(request.referrer or url_for("dashboard.index"))
+    except Exception:
+        return redirect(url_for("dashboard.index"))
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    """Erro interno — log + template amigável."""
+    log.exception("Erro 500: %s", e)
+    if request.path.startswith("/api/") or request.is_json:
+        return jsonify({"sucesso": False, "erro": "Erro interno do servidor."}), 500
+    return render_template("errors/500.html"), 500
+
+
 @app.errorhandler(Exception)
 def handle_unhandled_exception(e):
     from werkzeug.exceptions import HTTPException
@@ -76,7 +101,7 @@ def handle_unhandled_exception(e):
     try:
         return redirect(request.referrer or url_for("dashboard.index"))
     except Exception:
-        return redirect("/")
+        return redirect(url_for("dashboard.index"))
 
 # Gemini client (compartilhado com bot.py)
 _gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))

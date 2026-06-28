@@ -106,9 +106,17 @@ def ensure_default_admin(db) -> Usuario | None:
     if not os.getenv("THEOOS_ADMIN_PASSWORD"):
         from theoos.logging_setup import get_logger
         get_logger(__name__).warning(
-            "Primeiro boot: admin criado com username=%r password=%r "
-            "(defina THEOOS_ADMIN_PASSWORD antes de subir em prod).",
-            username, password,
+            "Primeiro boot: admin criado com username=%r — defina "
+            "THEOOS_ADMIN_PASSWORD no .env antes de subir em prod. "
+            "Senha provisória impressa apenas no stdout (rotacionar após primeiro login).",
+            username,
+        )
+        print(
+            f"\n[ThéoOS] Admin provisório criado\n"
+            f"  usuário: {username}\n"
+            f"  senha:   {password}\n"
+            f"  → faça login e troque a senha em /config/usuarios\n",
+            flush=True,
         )
     return create_user(db, username, password, nome="Administrador", role="admin")
 

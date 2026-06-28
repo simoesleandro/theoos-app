@@ -24,7 +24,7 @@ from flask import (
 from models import Financas, ItemGasto, Produto, db
 from theoos import audit, backup, reconcile, recurring
 from theoos.db_migrate import get_setting, set_setting
-from theoos.auth import admin_required
+from theoos.auth import admin_required, pin_configured
 bp = Blueprint("config", __name__)
 
 
@@ -97,7 +97,7 @@ def config_page():
     logs = audit.recent_logs(db, 20)
     return render_template(
         "config.html",
-        pin_enabled=False,
+        pin_enabled=pin_configured(db),
         reminder_days=reminder_days,
         theme=theme,
         web_notify=web_notify,
